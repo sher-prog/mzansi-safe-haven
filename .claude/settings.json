@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm view *)",
+      "Bash(python3 -c \"import json,sys; v=json.load\\(sys.stdin\\); print\\(v[-15:]\\)\")",
+      "Bash(npm audit *)",
+      "Bash(python3 -c ' *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(npx eslint *)",
+      "Bash(npx vitest *)",
+      "Bash(git add *)",
+      "Bash(npm ls *)",
+      "Bash(node -e \"require.resolve\\('playwright'\\)\")",
+      "Bash(timeout 8 npm view playwright version)"
+    ]
+  }
+}
