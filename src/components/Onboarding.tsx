@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChefHat } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import PinKeypad from "@/components/PinKeypad";
 import * as secureStorage from "@/lib/secureStorage";
+import { isCryptoAvailable } from "@/lib/secureContext";
+import CryptoUnavailableNotice from "@/components/CryptoUnavailableNotice";
 
 interface OnboardingProps {
   onDismiss: () => void;
@@ -18,6 +21,10 @@ const Onboarding = ({ onDismiss }: OnboardingProps) => {
   const [firstPin, setFirstPin] = useState("");
   const [pinError, setPinError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // A second tap can land before React re-renders the disabled button, and `submitting`
+  // state read from the closure would still be stale at that instant — the ref is
+  // updated synchronously, so it actually blocks a same-tick double-submit.
+  const submittingRef = useRef(false);
 
   const handleGetStarted = () => {
     localStorage.setItem("safeexit_onboarded", "true");
@@ -25,7 +32,8 @@ const Onboarding = ({ onDismiss }: OnboardingProps) => {
   };
 
   const handlePinContinue = async () => {
-    if (pin.length < 4 || submitting) return;
+    if (pin.length < 4 || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setPinError(null);
     try {
@@ -44,7 +52,16 @@ const Onboarding = ({ onDismiss }: OnboardingProps) => {
       }
       await secureStorage.setupPin(pin);
       handleGetStarted();
+    } catch (err) {
+      // setupPin goes through WebCrypto (see src/lib/crypto.ts) — if that throws
+      // (e.g. crypto.subtle missing outside a secure context), surface it instead
+      // of leaving the button looking like it did nothing. The isCryptoAvailable()
+      // render guard below should make this unreachable in practice; this is the
+      // belt-and-suspenders backstop for anything that still slips through it.
+      if (import.meta.env.DEV) console.error("PIN setup failed:", err);
+      toast.error("Something went wrong securing your code. Please try again.");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -97,7 +114,11 @@ const Onboarding = ({ onDismiss }: OnboardingProps) => {
           </motion.div>
         )}
 
-        {step === 2 && (
+        {step === 2 && !isCryptoAvailable() && (
+          <CryptoUnavailableNotice key="crypto-unavailable" />
+        )}
+
+        {step === 2 && isCryptoAvailable() && (
           <motion.div
             key="step2"
             initial={{ opacity: 0 }}

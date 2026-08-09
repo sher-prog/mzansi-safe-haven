@@ -18,6 +18,27 @@ const PinKeypad = ({ value, onChange, maxLength = 6 }: PinKeypadProps) => {
     onChange(value + key);
   };
 
+  // Pointer events unify mouse/touch/pen into a single event stream — no separate
+  // touch/mouse handlers to keep in sync, and no risk of a tap registering twice.
+  // touch-action: manipulation is the load-bearing part: without it, iOS Safari's
+  // native double-tap-to-zoom gesture recognizer competes with a fast burst of taps
+  // on this tightly-packed grid (exactly what typing a PIN is), and can delay or
+  // drop individual taps. iOS has ignored the viewport meta's user-scalable=no since
+  // iOS 10, so touch-action is the only remaining way to suppress it per-element.
+  const handlePointerUp = (key: string) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return; // ignore right/middle click
+    press(key);
+  };
+
+  // Keyboard activation (Enter/Space on a focused button) doesn't dispatch pointer
+  // events, so it's handled explicitly here rather than falling back to onClick —
+  // keeps every input mode going through one explicit path per key.
+  const handleKeyDown = (key: string) => (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    press(key);
+  };
+
   return (
     <div className="w-full max-w-[240px] mx-auto">
       <div className="flex justify-center gap-3 mb-6" aria-hidden="true">
@@ -38,9 +59,11 @@ const PinKeypad = ({ value, onChange, maxLength = 6 }: PinKeypadProps) => {
             <button
               key={key}
               type="button"
-              onClick={() => press(key)}
+              onPointerUp={handlePointerUp(key)}
+              onKeyDown={handleKeyDown(key)}
               aria-label={key === "del" ? "Delete digit" : `Digit ${key}`}
-              className="h-14 min-h-[48px] rounded-xl bg-card border border-border text-foreground text-lg font-semibold flex items-center justify-center active:bg-secondary transition-colors"
+              style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
+              className="h-14 min-h-[48px] rounded-xl bg-card border border-border text-foreground text-lg font-semibold flex items-center justify-center active:bg-secondary transition-colors select-none"
             >
               {key === "del" ? <Delete className="w-5 h-5" /> : key}
             </button>

@@ -1,21 +1,29 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, ArrowLeft, FileText } from "lucide-react";
+import { Shield, ArrowLeft } from "lucide-react";
 import ExitPlanChecklist from "./ExitPlanChecklist";
-import ShelterMap from "./ShelterMap";
+import GetHelp from "./GetHelp";
 import PanicButton from "./PanicButton";
 import SafetyNotes from "./SafetyNotes";
 import Vault from "./Vault";
+import BackupRestore from "./BackupRestore";
 import { isHandoffActive, endHandoff } from "@/lib/appFocus";
+import { requestPersistentStorageOnce } from "@/lib/storagePersistence";
 
 interface SafetyAppProps {
   onExit: () => void;
 }
 
-type Tab = "checklist" | "shelters" | "panic" | "notes" | "vault";
+type Tab = "checklist" | "help" | "panic" | "notes" | "vault" | "backup";
 
 const SafetyApp = ({ onExit }: SafetyAppProps) => {
   const [activeTab, setActiveTab] = useState<Tab>("checklist");
+
+  // Best-effort, non-blocking — see src/lib/storagePersistence.ts. Requested once per
+  // device (tracked in localStorage), on first entry into safety mode.
+  useEffect(() => {
+    void requestPersistentStorageOnce();
+  }, []);
 
   // Escape key and backgrounding the tab/app both act as an instant Quick Exit —
   // safety content should never be what's shown when someone glances back at the screen.
@@ -49,10 +57,11 @@ const SafetyApp = ({ onExit }: SafetyAppProps) => {
 
   const tabs: { id: Tab; label: string; icon?: React.ReactNode }[] = [
     { id: "checklist", label: "Exit Plan" },
-    { id: "shelters", label: "Shelters" },
+    { id: "help", label: "Get Help" },
     { id: "panic", label: "Panic" },
     { id: "notes", label: "My Notes", icon: <span className="text-sm">📝</span> },
     { id: "vault", label: "Vault", icon: <span className="text-sm">🔒</span> },
+    { id: "backup", label: "Backup", icon: <span className="text-sm">💾</span> },
   ];
 
   return (
@@ -81,12 +90,12 @@ const SafetyApp = ({ onExit }: SafetyAppProps) => {
       </header>
 
       {/* Tab Navigation */}
-      <div className="flex border-b border-border">
+      <div className="flex border-b border-border overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-3 text-sm font-medium transition-colors relative flex items-center justify-center gap-1 ${
+            className={`flex-1 min-w-[76px] py-3 text-sm font-medium transition-colors relative flex items-center justify-center gap-1 whitespace-nowrap ${
               activeTab === tab.id
                 ? "text-primary"
                 : "text-muted-foreground hover:text-foreground"
@@ -112,9 +121,9 @@ const SafetyApp = ({ onExit }: SafetyAppProps) => {
               <ExitPlanChecklist />
             </motion.div>
           )}
-          {activeTab === "shelters" && (
-            <motion.div key="shelters" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
-              <ShelterMap />
+          {activeTab === "help" && (
+            <motion.div key="help" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+              <GetHelp />
             </motion.div>
           )}
           {activeTab === "panic" && (
@@ -130,6 +139,11 @@ const SafetyApp = ({ onExit }: SafetyAppProps) => {
           {activeTab === "vault" && (
             <motion.div key="vault" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
               <Vault />
+            </motion.div>
+          )}
+          {activeTab === "backup" && (
+            <motion.div key="backup" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+              <BackupRestore />
             </motion.div>
           )}
         </AnimatePresence>

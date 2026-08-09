@@ -6,9 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { compressImage, checkStorageUsage } from "@/lib/mediaHelpers";
+import { checkStorageUsage } from "@/lib/mediaHelpers";
 import { getItem, setItem, SecureStorageLockedError } from "@/lib/secureStorage";
 import { beginHandoff } from "@/lib/appFocus";
+import { capturePhoto, type MediaRecord, type MediaSource } from "@/lib/evidence";
+import { deleteBlob } from "@/lib/blobStore";
+import { useBlobUrl } from "@/hooks/use-blob-url";
 import LoyaltyGate from "@/components/LoyaltyGate";
 import { toast } from "sonner";
 
@@ -18,8 +21,24 @@ interface VaultDoc {
   title: string;
   notes: string;
   createdAt: string;
-  photo?: string;
+  photo?: MediaRecord;
 }
+
+/** Displayed thumbnail is always the compressed copy — the original stays untouched
+ * in the blob store, pulled only for evidence export. */
+const MediaThumb = ({ media, className, alt }: { media: MediaRecord; className?: string; alt: string }) => {
+  const url = useBlobUrl(media.thumbKey ?? media.originalKey);
+  if (!url) return <div className={`${className} bg-slate-200 animate-pulse`} />;
+  return <img src={url} alt={alt} className={className} />;
+};
+
+const EvidenceMeta = ({ media }: { media: MediaRecord }) => (
+  <p className="text-[10px] mt-1 break-all" style={{ color: "#94A3B8" }}>
+    Captured {new Date(media.capturedAt).toLocaleString()}
+    {media.gps ? ` • GPS ${media.gps.lat.toFixed(5)}, ${media.gps.lng.toFixed(5)}` : " • GPS not captured"}
+    {` • SHA-256 ${media.sha256.slice(0, 16)}…`}
+  </p>
+);
 
 const CATEGORIES: VaultDoc["category"][] = ["ID", "Financial", "Medical", "Legal", "Property", "Other"];
 
@@ -34,9 +53,12 @@ const Vault = () => {
   const [category, setCategory] = useState<VaultDoc["category"]>("ID");
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
-  const [photo, setPhoto] = useState<string | undefined>();
+  const [photo, setPhoto] = useState<MediaRecord | undefined>();
+  const [showImportNotice, setShowImportNotice] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const pendingPhotoRef = useRef<{ file: File; source: MediaSource } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -52,8 +74,9 @@ const Vault = () => {
   const saveDocs = async (newDocs: VaultDoc[]) => {
     await setItem("vault_docs", newDocs);
     setDocs(newDocs);
-    const warning = checkStorageUsage();
-    if (warning) toast.warning(warning);
+    const status = await checkStorageUsage();
+    if (status.level === "critical") toast.error(status.message!);
+    else if (status.level === "warning") toast.warning(status.message!);
   };
 
   const resetForm = () => {
@@ -61,6 +84,8 @@ const Vault = () => {
     setNotes("");
     setCategory("ID");
     setPhoto(undefined);
+    pendingPhotoRef.current = null;
+    setShowImportNotice(false);
     setShowForm(false);
   };
 
@@ -88,8 +113,13 @@ const Vault = () => {
   };
 
   const handleDelete = async (id: string) => {
+    const doc = docs.find((d) => d.id === id);
     try {
       await saveDocs(docs.filter((d) => d.id !== id));
+      if (doc?.photo) {
+        deleteBlob(doc.photo.originalKey).catch(() => {});
+        if (doc.photo.thumbKey) deleteBlob(doc.photo.thumbKey).catch(() => {});
+      }
     } catch (error) {
       if (import.meta.env.DEV) console.error("Failed to delete document:", error);
       toast.error("Failed to save. Storage may be full.");
@@ -98,16 +128,55 @@ const Vault = () => {
     setShowDeleteConfirm(null);
   };
 
-  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Captures the ORIGINAL file untouched (hashed, stored, timestamped, geotagged);
+  // compressImage (inside capturePhoto) only ever produces a separate display thumbnail.
+  // `source` records whether this came from the camera just now or an existing gallery
+  // file, which the evidence pack captions differently (see src/lib/exportPack.ts).
+  const processPhotoFile = async (file: File, source: MediaSource) => {
+    const status = await checkStorageUsage();
+    if (status.level === "critical") {
+      toast.error(status.message ?? "Storage is almost full.");
+      return;
+    }
+    try {
+      const media = await capturePhoto(file, source);
+      setPhoto(media);
+      pendingPhotoRef.current = null;
+      if (source === "imported") setShowImportNotice(true);
+    } catch (error) {
+      if (error instanceof SecureStorageLockedError) {
+        pendingPhotoRef.current = { file, source };
+        setShowUnlockPrompt(true);
+      } else {
+        if (import.meta.env.DEV) console.error("Failed to process photo:", error);
+        toast.error("Failed to process photo.");
+      }
+    }
+  };
+
+  const handleCameraSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      const compressed = await compressImage(file);
-      setPhoto(compressed);
-    } catch {
-      toast.error("Failed to process photo.");
+    await processPhotoFile(file, "captured");
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+  };
+
+  const handleGallerySelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processPhotoFile(file, "imported");
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+  };
+
+  const handleUnlockSuccess = async () => {
+    setShowUnlockPrompt(false);
+    if (pendingPhotoRef.current) {
+      const { file, source } = pendingPhotoRef.current;
+      pendingPhotoRef.current = null;
+      await processPhotoFile(file, source);
+      return;
     }
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    await handleSave();
   };
 
   const formatDate = (d: string) => {
@@ -183,7 +252,7 @@ const Vault = () => {
                       <p className="font-medium" style={{ color: "#0F172A" }}>{doc.title}</p>
 
                       {expandedDoc !== doc.id && doc.photo && (
-                        <img src={doc.photo} alt="Document" className="mt-2 w-16 h-16 object-cover rounded" />
+                        <MediaThumb media={doc.photo} alt="Document" className="mt-2 w-16 h-16 object-cover rounded" />
                       )}
 
                       {expandedDoc === doc.id && (
@@ -197,7 +266,8 @@ const Vault = () => {
                           {doc.photo && (
                             <div className="mt-3">
                               <p className="text-xs mb-1" style={{ color: "#64748B" }}>Photo:</p>
-                              <img src={doc.photo} alt="Document" className="w-full max-w-md rounded-lg" />
+                              <MediaThumb media={doc.photo} alt="Document" className="w-full max-w-md rounded-lg" />
+                              <EvidenceMeta media={doc.photo} />
                             </div>
                           )}
                           <div className="mt-4 flex justify-end">
@@ -226,8 +296,11 @@ const Vault = () => {
         )}
       </div>
 
-      {/* Hidden file input */}
-      <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoSelect} />
+      {/* Hidden file inputs — camera capture vs. an existing gallery file are separate
+          inputs so the app knows which the user actually chose (see MediaRecord.source
+          in src/lib/evidence.ts). */}
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleCameraSelect} />
+      <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={handleGallerySelect} />
 
       {/* New Document Dialog */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
@@ -279,22 +352,54 @@ const Vault = () => {
 
             <div>
               <label className="block text-sm mb-2" style={{ color: "#64748B" }}>Photo</label>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => { beginHandoff(); fileInputRef.current?.click(); }}
-                className="min-h-[48px] flex items-center gap-2"
-                style={{ backgroundColor: "#F8FAFC", borderColor: "#E2E8F0", color: "#0F172A" }}
-              >
-                <Camera className="w-4 h-4" />
-                📷 Add Photo
-              </Button>
+              <p className="text-xs mb-2" style={{ color: "#94A3B8" }}>
+                Taking a photo directly in the app is the stronger option for evidence — the
+                timestamp and location are recorded at that exact moment.
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  type="button"
+                  onClick={() => { beginHandoff(); cameraInputRef.current?.click(); }}
+                  className="min-h-[48px] flex items-center gap-2"
+                  style={{ backgroundColor: "#0F172A", color: "#FFFFFF" }}
+                >
+                  <Camera className="w-4 h-4" />
+                  📷 Take Photo
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => { beginHandoff(); galleryInputRef.current?.click(); }}
+                  className="min-h-[48px] flex items-center gap-2"
+                  style={{ backgroundColor: "#F8FAFC", borderColor: "#E2E8F0", color: "#0F172A" }}
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  Add from Gallery
+                </Button>
+              </div>
               {photo && (
                 <div className="mt-3 relative inline-block">
-                  <img src={photo} alt="Attached" className="w-24 h-24 object-cover rounded-lg" />
+                  <MediaThumb media={photo} alt="Attached" className="w-24 h-24 object-cover rounded-lg" />
                   <button
                     onClick={() => setPhoto(undefined)}
                     className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center"
+                  >
+                    ✕
+                  </button>
+                  <EvidenceMeta media={photo} />
+                </div>
+              )}
+              {showImportNotice && (
+                <div className="mt-3 flex items-start gap-2 rounded-lg p-3" style={{ backgroundColor: "#EFF6FF", border: "1px solid #BFDBFE" }}>
+                  <p className="text-xs leading-relaxed flex-1" style={{ color: "#1E3A8A" }}>
+                    Saved securely. You can now delete the original from your gallery if you
+                    wish — it will remain here.
+                  </p>
+                  <button
+                    onClick={() => setShowImportNotice(false)}
+                    aria-label="Dismiss"
+                    className="text-xs flex-shrink-0"
+                    style={{ color: "#1E3A8A" }}
                   >
                     ✕
                   </button>
@@ -337,12 +442,13 @@ const Vault = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Re-unlock prompt: shown if the store locked before the document could be saved.
-          The document (including any photo) stays in the form so Save can be retried. */}
+      {/* Re-unlock prompt: shown if the store locked before the document/photo could be
+          saved. The pending document (and any captured photo) stays in memory so the
+          save completes automatically once the PIN is re-entered. */}
       {showUnlockPrompt && (
         <div className="fixed inset-0 z-50">
           <LoyaltyGate
-            onSuccess={() => { setShowUnlockPrompt(false); handleSave(); }}
+            onSuccess={() => { void handleUnlockSuccess(); }}
             onBack={() => setShowUnlockPrompt(false)}
           />
         </div>

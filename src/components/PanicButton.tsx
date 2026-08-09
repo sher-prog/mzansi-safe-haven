@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,23 @@ interface TrustedContact {
   phone: string;
 }
 
+interface DesktopFallback {
+  phone: string | null;
+  message: string;
+}
+
 const TEARS_FALLBACK_TEL = "tel:0800083277";
+
+/** sms:/tel: links don't do anything useful on most laptops (no default handler) and
+ * on some Android devices without one configured — this is a coarse, best-effort
+ * signal for "is this a device where those links are likely to actually work",
+ * not a precise device check. */
+function isLikelyMobileDevice(): boolean {
+  if (typeof window === "undefined") return true;
+  if (window.matchMedia?.("(pointer: coarse)")?.matches) return true;
+  if (navigator.maxTouchPoints > 0) return true;
+  return false;
+}
 
 const PanicButton = () => {
   const [holding, setHolding] = useState(false);
@@ -26,6 +42,8 @@ const PanicButton = () => {
   const [showContactForm, setShowContactForm] = useState(false);
   const [formName, setFormName] = useState("");
   const [formPhone, setFormPhone] = useState("");
+  const [fallback, setFallback] = useState<DesktopFallback | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -71,17 +89,23 @@ const PanicButton = () => {
   const sendSMS = useCallback(
     (lat?: number, lng?: number) => {
       if (!contact) return;
+      const locationPart =
+        lat !== undefined && lng !== undefined
+          ? ` My location: https://maps.google.com/?q=${lat},${lng}`
+          : "";
+      const message = `URGENT: I need help.${locationPart} Please call me now. TEARS: 0800601010`;
       try {
-        const locationPart =
-          lat !== undefined && lng !== undefined
-            ? ` My location: https://maps.google.com/?q=${lat},${lng}`
-            : "";
-        const message = `URGENT: I need help.${locationPart} Please call me now. TEARS: 0800601010`;
         const link = document.createElement("a");
         link.href = `sms:${contact.phone}?body=${encodeURIComponent(message)}`;
         link.click();
       } catch {
         toast.error("Couldn't open your messaging app. Try calling 0800 150 150 directly.");
+      }
+      // sms: links silently do nothing on most desktops (and some Android devices with
+      // no default SMS handler) — offer a copyable fallback there, without changing
+      // anything about the mobile path above, which still gets attempted either way.
+      if (!isLikelyMobileDevice()) {
+        setFallback({ phone: contact.phone, message });
       }
     },
     [contact],
@@ -95,6 +119,9 @@ const PanicButton = () => {
     if (!contact) {
       toast.info("No trusted contact set — connecting you to the TEARS helpline instead.");
       window.location.href = TEARS_FALLBACK_TEL;
+      if (!isLikelyMobileDevice()) {
+        setFallback({ phone: null, message: "TEARS Helpline: 0800 60 10 10" });
+      }
       return;
     }
 
@@ -137,26 +164,16 @@ const PanicButton = () => {
     setHolding(false);
   }, []);
 
-  useEffect(() => {
-    const btn = buttonRef.current;
-    if (!btn) return;
-
-    btn.addEventListener('touchstart', startHold, { passive: false });
-    btn.addEventListener('touchend', cancelHold, { passive: false });
-    btn.addEventListener('touchcancel', cancelHold, { passive: false });
-    btn.addEventListener('mousedown', startHold);
-    btn.addEventListener('mouseup', cancelHold);
-    btn.addEventListener('mouseleave', cancelHold);
-
-    return () => {
-      btn.removeEventListener('touchstart', startHold);
-      btn.removeEventListener('touchend', cancelHold);
-      btn.removeEventListener('touchcancel', cancelHold);
-      btn.removeEventListener('mousedown', startHold);
-      btn.removeEventListener('mouseup', cancelHold);
-      btn.removeEventListener('mouseleave', cancelHold);
-    };
-  }, [startHold, cancelHold]);
+  // Pointer events unify mouse/touch/pen into one stream, so there's a single hold
+  // gesture implementation instead of parallel touch*/mouse* listeners that could
+  // fire for the same physical press on a device that dispatches both.
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      startHold();
+    },
+    [startHold],
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -183,6 +200,18 @@ const PanicButton = () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
+
+  const handleCopyMessage = useCallback(async () => {
+    if (!fallback) return;
+    const text = fallback.phone ? `${fallback.phone}: ${fallback.message}` : fallback.message;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy automatically — please select and copy the text manually.");
+    }
+  }, [fallback]);
 
   const dasharray = 283;
   const dashoffset = dasharray - (dasharray * progress) / 100;
@@ -302,6 +331,10 @@ const PanicButton = () => {
         </svg>
         <button
           ref={buttonRef}
+          onPointerDown={handlePointerDown}
+          onPointerUp={cancelHold}
+          onPointerCancel={cancelHold}
+          onPointerLeave={cancelHold}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
           aria-label="Hold for 2 seconds to send an emergency alert with your location"
@@ -332,6 +365,38 @@ const PanicButton = () => {
       <p className="text-center text-sm max-w-[260px] mb-10" style={{ color: "#ff9999" }}>
         Hold 2 seconds — your SMS app will open ready to send your location
       </p>
+
+      {/* Desktop/non-mobile fallback: sms:/tel: links don't do anything on most
+          laptops, so surface the number and message as selectable/copyable text. */}
+      {fallback && (
+        <div className="w-full max-w-xs mb-6 rounded-lg p-4 space-y-3" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)" }}>
+          <p className="text-xs" style={{ color: "#ff9999" }}>
+            This device may not have opened a messaging app automatically. Send this
+            yourself instead:
+          </p>
+          {fallback.phone && (
+            <p className="text-sm font-semibold text-white select-text break-all">{fallback.phone}</p>
+          )}
+          <p className="text-sm text-white select-text leading-relaxed">{fallback.message}</p>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleCopyMessage}
+              variant="outline"
+              className="min-h-[48px] flex-1 border-white/20 text-white hover:bg-white/10 flex items-center gap-2"
+            >
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copied ? "Copied" : "Copy Message"}
+            </Button>
+            <Button
+              onClick={() => setFallback(null)}
+              variant="outline"
+              className="min-h-[48px] border-white/20 text-white hover:bg-white/10"
+            >
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Helpline links */}
       <div className="w-full max-w-xs space-y-2">

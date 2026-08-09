@@ -65,3 +65,22 @@ export async function decryptJSON<T>(key: CryptoKey, payload: string): Promise<T
   const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
   return JSON.parse(new TextDecoder().decode(plaintext)) as T;
 }
+
+/**
+ * Encrypts a raw binary payload with a fresh random IV. Used for media blobs (photos,
+ * audio) instead of encryptJSON — those go through IndexedDB, which stores ArrayBuffers
+ * natively, so there's no reason to pay JSON/base64's ~33% size overhead on multi-MB files.
+ */
+export async function encryptBytes(
+  key: CryptoKey,
+  data: ArrayBuffer,
+): Promise<{ iv: Uint8Array; ciphertext: ArrayBuffer }> {
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
+  return { iv, ciphertext };
+}
+
+/** Decrypts a payload produced by encryptBytes. Rejects if the key is wrong or data is tampered. */
+export async function decryptBytes(key: CryptoKey, iv: Uint8Array, ciphertext: ArrayBuffer): Promise<ArrayBuffer> {
+  return crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+}

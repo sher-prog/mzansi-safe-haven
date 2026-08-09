@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { ChefHat, ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import PinKeypad from "@/components/PinKeypad";
 import * as secureStorage from "@/lib/secureStorage";
+import { isCryptoAvailable } from "@/lib/secureContext";
+import CryptoUnavailableNotice from "@/components/CryptoUnavailableNotice";
 
 interface LoyaltyGateProps {
   onSuccess: () => void;
@@ -18,9 +21,14 @@ const LoyaltyGate = ({ onSuccess, onBack }: LoyaltyGateProps) => {
   const [firstPin, setFirstPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // A second tap can land before React re-renders the disabled button, and `submitting`
+  // state read from the closure would still be stale at that instant — the ref is
+  // updated synchronously, so it actually blocks a same-tick double-submit.
+  const submittingRef = useRef(false);
 
   const handleContinue = async () => {
-    if (pin.length < 4 || submitting) return;
+    if (pin.length < 4 || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -49,10 +57,24 @@ const LoyaltyGate = ({ onSuccess, onBack }: LoyaltyGateProps) => {
         setError("Code not recognised — please check your till slip.");
         setPin("");
       }
+    } catch (err) {
+      // setupPin/unlock both go through WebCrypto (see src/lib/crypto.ts) — if that
+      // throws (e.g. crypto.subtle missing outside a secure context), surface it
+      // instead of leaving the button looking like it did nothing. The
+      // isCryptoAvailable() render guard should make this unreachable in practice;
+      // this is the belt-and-suspenders backstop for anything that still slips
+      // through it (e.g. the context becoming unavailable mid-session).
+      if (import.meta.env.DEV) console.error("PIN operation failed:", err);
+      toast.error("Something went wrong securing your code. Please try again.");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
+
+  if (!isCryptoAvailable()) {
+    return <CryptoUnavailableNotice onBack={onBack} />;
+  }
 
   const title =
     stage === "unlock" ? "Loyalty Code" : stage === "choose" ? "Choose Your Loyalty Code" : "Confirm Your Loyalty Code";

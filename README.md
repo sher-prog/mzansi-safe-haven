@@ -44,6 +44,38 @@ npm install
 npm run dev
 ```
 
+### Testing on a phone
+
+The PIN setup/unlock screens use the browser's WebCrypto API (`crypto.subtle`),
+which browsers only expose in a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) —
+HTTPS, or the literal hostname `localhost`. `npm run dev` serves plain HTTP on your
+LAN IP (e.g. `http://192.168.1.x:8080`), and a LAN IP over HTTP is **not** a secure
+context, even though `localhost` on the same machine would be. Opening that LAN URL
+on a phone means `crypto.subtle` is simply missing — the app detects this and shows
+a "Secure Connection Needed" screen instead of failing silently, but you still won't
+be able to actually set up or unlock a PIN that way. Two ways around it:
+
+**Option A — serve HTTPS on your LAN IP:**
+
+```sh
+npm run dev:https
+```
+
+Vite will print an `https://<your-LAN-IP>:8080` URL. Open that on your phone and
+accept the self-signed certificate warning (it's expected — the cert isn't from a
+trusted CA, but the connection is still encrypted, which is all `crypto.subtle`
+requires). On Windows, set the env var separately if `VITE_HTTPS=true vite` doesn't
+work in your shell, e.g. in PowerShell: `$env:VITE_HTTPS="true"; npm run dev`.
+
+**Option B — tunnel `localhost` over USB instead:**
+
+- **Android:** connect via USB with debugging enabled, run `adb reverse tcp:8080 tcp:8080`,
+  then open `http://localhost:8080` in the phone's browser — `localhost` is a secure
+  context even over plain HTTP.
+- **iOS:** use Xcode's "Point-to-Point" USB tunnel or a tool like
+  [`ios-webkit-debug-proxy`](https://github.com/google/ios-webkit-debug-proxy) to forward
+  a local port over USB, then open `http://localhost:8080` in Safari on the phone.
+
 ## Project Structure
 
 ```

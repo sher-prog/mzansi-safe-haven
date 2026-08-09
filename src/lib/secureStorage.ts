@@ -39,6 +39,22 @@ export function isUnlocked(): boolean {
   return activeKey !== null;
 }
 
+/** For modules (blobStore, backup) that need the same session key secureStorage already
+ * holds, instead of managing their own parallel unlock state. */
+export function getActiveKey(): CryptoKey {
+  if (!activeKey) throw new SecureStorageLockedError();
+  return activeKey;
+}
+
+/** The salt/verifier pair the active key was derived from — bundled into encrypted
+ * backups so a PIN can be re-verified and re-derived on a different device. */
+export function getSaltAndVerifier(): { salt: string; verifier: string } | null {
+  const salt = localStorage.getItem(SALT_KEY);
+  const verifier = localStorage.getItem(VERIFIER_KEY);
+  if (!salt || !verifier) return null;
+  return { salt, verifier };
+}
+
 export function lock(): void {
   activeKey = null;
 }
