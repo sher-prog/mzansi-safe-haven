@@ -13,7 +13,15 @@
       "Bash(git add *)",
       "Bash(npm ls *)",
       "Bash(node -e \"require.resolve\\('playwright'\\)\")",
-      "Bash(timeout 8 npm view playwright version)"
+      "Bash(timeout 8 npm view playwright version)",
+      "Bash(git checkout *)",
+      "Bash(npx playwright *)",
+      "Bash(lsof -ti:8080 -sTCP:LISTEN)",
+      "Bash(xargs -r kill)",
+      "Bash(nohup npm run dev)",
+      "Bash(disown)",
+      "Bash(curl -sf http://localhost:8080)",
+      "Bash(break)"
     ]
   }
 }

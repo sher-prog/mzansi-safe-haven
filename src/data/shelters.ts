@@ -8,7 +8,8 @@ export interface Shelter {
   address: string;
 }
 
-// Local-first v1: bundled national helplines only. These numbers are the same
+// Local-first v1: bundled national helplines only (rendered by GetHelp.tsx — there's
+// no map, just verified numbers that work fully offline). These numbers are the same
 // ones already relied on elsewhere in this app (PanicButton, onboarding).
 // A vetted, regularly-updated local shelter directory should replace/extend
 // this list before relying on it for specific in-person shelter referrals.

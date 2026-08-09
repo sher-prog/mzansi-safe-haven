@@ -6,8 +6,10 @@ import { recipes as defaultRecipes } from "@/data/recipes";
 import RecipeDetail from "@/components/RecipeDetail";
 import type { Recipe } from "@/components/RecipeDetail";
 import LoyaltyGate from "@/components/LoyaltyGate";
+import ImportBackup from "@/components/ImportBackup";
 
 const CUSTOM_RECIPES_KEY = "mzansi_recipes";
+const LOGO_LONG_PRESS_MS = 600;
 
 interface RecipeCoverProps {
   onUnlock: () => void;
@@ -23,12 +25,35 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
   const [selectedRecipe, setSelectedRecipe] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showGate, setShowGate] = useState(false);
+  const [showImportBackup, setShowImportBackup] = useState(false);
   const [formData, setFormData] = useState<CustomRecipe>({ title: "", ingredients: "", method: "" });
   const [customRecipes, setCustomRecipes] = useState<Recipe[]>([]);
 
   // Salt shaker tap tracking
   const tapCount = useRef(0);
   const lastTap = useRef(0);
+
+  // ChefHat logo long-press — restores an encrypted backup (src/lib/backup.ts),
+  // the offline replacement for the cloud sync removed in Phase 1. Pointer events
+  // unify mouse/touch/pen into one stream, instead of parallel touch*/mouse*
+  // listeners that could both fire for the same physical press.
+  const logoPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleLogoPressStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (logoPressTimer.current) clearTimeout(logoPressTimer.current);
+    logoPressTimer.current = setTimeout(() => {
+      logoPressTimer.current = null;
+      setShowImportBackup(true);
+    }, LOGO_LONG_PRESS_MS);
+  }, []);
+
+  const handleLogoPressEnd = useCallback(() => {
+    if (logoPressTimer.current) {
+      clearTimeout(logoPressTimer.current);
+      logoPressTimer.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -82,7 +107,9 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
       className="min-h-screen bg-background"
     >
       <AnimatePresence mode="wait">
-        {showGate ? (
+        {showImportBackup ? (
+          <ImportBackup key="import-backup" onSuccess={onUnlock} onBack={() => setShowImportBackup(false)} />
+        ) : showGate ? (
           <LoyaltyGate key="gate" onSuccess={onUnlock} onBack={() => setShowGate(false)} />
         ) : selectedRecipe !== null ? (
           <RecipeDetail
@@ -100,7 +127,14 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
             {/* Header */}
             <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
               <div className="flex items-center justify-between px-5 py-4">
-                <div className="flex items-center gap-2 select-none">
+                <div
+                  className="flex items-center gap-2 select-none"
+                  onPointerDown={handleLogoPressStart}
+                  onPointerUp={handleLogoPressEnd}
+                  onPointerCancel={handleLogoPressEnd}
+                  onPointerLeave={handleLogoPressEnd}
+                  style={{ WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
+                >
                   <ChefHat className="w-7 h-7 text-primary" />
                   <span className="font-display text-xl font-bold text-foreground">
                     Mzansi's Kitchen
