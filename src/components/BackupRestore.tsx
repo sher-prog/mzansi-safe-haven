@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { Save, ShieldCheck, FileDown, ChefHat, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getItem } from "@/lib/secureStorage";
-import { generateEvidencePackPdf, type EvidencePackNote } from "@/lib/exportPack";
+import type { EvidencePackNote } from "@/lib/exportPack";
 import { exportBackup } from "@/lib/backup";
 import { downloadBlob } from "@/lib/download";
 import { isStoragePersisted } from "@/lib/storagePersistence";
 import LoyaltyGate from "@/components/LoyaltyGate";
+import { useTranslation } from "@/i18n";
 import { toast } from "sonner";
 
 interface Note {
@@ -26,6 +27,7 @@ interface Note {
  * not skimmed by someone comfortable with technical UI.
  */
 const BackupRestore = () => {
+  const { t } = useTranslation();
   const [notes, setNotes] = useState<Note[]>([]);
   const [exportGate, setExportGate] = useState<"evidence" | "backup" | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -46,6 +48,11 @@ const BackupRestore = () => {
   const runExportEvidencePack = async () => {
     setExporting(true);
     try {
+      // jsPDF pulls in html2canvas/dompurify (~60KB gzipped) — nobody browsing
+      // Notes/Vault/Checklist should pay for that, only someone who actually taps
+      // this button, so it's loaded on demand rather than bundled with the rest of
+      // safety mode.
+      const { generateEvidencePackPdf } = await import("@/lib/exportPack");
       const packNotes: EvidencePackNote[] = notes.map((n) => ({
         id: n.id,
         category: n.category,
@@ -57,10 +64,10 @@ const BackupRestore = () => {
       }));
       const blob = await generateEvidencePackPdf(packNotes);
       downloadBlob(blob, `safeexit-evidence-pack-${new Date().toISOString().slice(0, 10)}.pdf`);
-      toast.success("Evidence pack downloaded.");
+      toast.success(t("backup.evidencePackDownloaded"));
     } catch (error) {
       if (import.meta.env.DEV) console.error("Failed to generate evidence pack:", error);
-      toast.error("Failed to generate evidence pack.");
+      toast.error(t("backup.evidencePackError"));
     } finally {
       setExporting(false);
     }
@@ -71,10 +78,10 @@ const BackupRestore = () => {
     try {
       const blob = await exportBackup();
       downloadBlob(blob, `safeexit-backup-${new Date().toISOString().slice(0, 10)}.safeexit`);
-      toast.success("Encrypted backup downloaded. Keep it somewhere safe, off this device.");
+      toast.success(t("backup.backupDownloaded"));
     } catch (error) {
       if (import.meta.env.DEV) console.error("Failed to export backup:", error);
-      toast.error("Failed to export backup.");
+      toast.error(t("backup.backupError"));
     } finally {
       setExporting(false);
     }
@@ -84,43 +91,30 @@ const BackupRestore = () => {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-          <Save className="w-5 h-5 text-primary" />
-          Backup & Restore
+          <Save className="w-5 h-5 text-primary" aria-hidden="true" />
+          {t("backup.title")}
         </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Everything in SafeExit is saved only on this phone. Back it up so you don't lose it.
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{t("backup.subtitle")}</p>
       </div>
 
       {persisted === false && (
         <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            This phone may clear app storage automatically if it runs low on space. It's a good
-            idea to make a backup regularly, just in case.
-          </p>
+          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
+          <p className="text-xs text-muted-foreground leading-relaxed">{t("backup.persistWarning")}</p>
         </div>
       )}
 
       <div className="bg-card border border-border rounded-lg p-4 space-y-2">
-        <h3 className="text-sm font-semibold text-foreground">Why this matters</h3>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          Your notes, photos, recordings and vault only exist on this phone. If this phone is
-          lost, taken, or broken, that information is gone — unless you have a backup saved
-          somewhere else.
-        </p>
+        <h3 className="text-sm font-semibold text-foreground">{t("backup.whyTitle")}</h3>
+        <p className="text-sm text-muted-foreground leading-relaxed">{t("backup.whyBody")}</p>
       </div>
 
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-foreground">How to back up</h3>
+        <h3 className="text-sm font-semibold text-foreground">{t("backup.howToBackupTitle")}</h3>
         <ol className="space-y-2 text-sm text-muted-foreground leading-relaxed list-decimal list-inside">
-          <li>Tap "Export Encrypted Backup" below.</li>
-          <li>
-            Save the file somewhere safe — for example: email it to yourself using an email
-            account they don't know about, save it to Google Drive, or send it to someone you
-            trust.
-          </li>
-          <li>The file is locked with your PIN. Nobody can open it without your PIN, even if they find it.</li>
+          <li>{t("backup.howToBackup1")}</li>
+          <li>{t("backup.howToBackup2")}</li>
+          <li>{t("backup.howToBackup3")}</li>
         </ol>
       </div>
 
@@ -130,39 +124,35 @@ const BackupRestore = () => {
           variant="outline"
           disabled={exporting || notes.length === 0}
           onClick={() => setExportGate("evidence")}
-          className="min-h-[48px] flex items-center gap-2"
+          className="min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <ShieldCheck className="w-4 h-4" />
-          Export Evidence Pack
+          <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+          {t("backup.exportEvidencePack")}
         </Button>
         <Button
           type="button"
           variant="outline"
           disabled={exporting}
           onClick={() => setExportGate("backup")}
-          className="min-h-[48px] flex items-center gap-2"
+          className="min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <FileDown className="w-4 h-4" />
-          Export Encrypted Backup
+          <FileDown className="w-4 h-4" aria-hidden="true" />
+          {t("backup.exportBackup")}
         </Button>
       </div>
-      {notes.length === 0 && (
-        <p className="text-xs text-muted-foreground">
-          Add a note with a photo or recording first to enable the evidence pack export.
-        </p>
-      )}
+      {notes.length === 0 && <p className="text-xs text-muted-foreground">{t("backup.needNoteHint")}</p>}
 
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <ChefHat className="w-4 h-4 text-primary" />
-          How to restore on a new phone
+          <ChefHat className="w-4 h-4 text-primary" aria-hidden="true" />
+          {t("backup.howToRestoreTitle")}
         </h3>
         <ol className="space-y-2 text-sm text-muted-foreground leading-relaxed list-decimal list-inside">
-          <li>Open this app on the new phone (it will look like a recipe app).</li>
-          <li>Press and hold the chef hat icon at the top of the recipe screen for about a second.</li>
-          <li>Choose your backup file.</li>
-          <li>Enter the PIN you used when you made that backup.</li>
-          <li>Your notes, vault, and photos will be restored onto the new phone.</li>
+          <li>{t("backup.howToRestore1")}</li>
+          <li>{t("backup.howToRestore2")}</li>
+          <li>{t("backup.howToRestore3")}</li>
+          <li>{t("backup.howToRestore4")}</li>
+          <li>{t("backup.howToRestore5")}</li>
         </ol>
       </div>
 

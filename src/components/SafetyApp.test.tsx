@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, act } from "@testing-library/react";
+import { act } from "@testing-library/react";
+import { renderWithProviders as render } from "@/test/test-utils";
 import { beginHandoff, endHandoff } from "@/lib/appFocus";
 import SafetyApp from "./SafetyApp";
 

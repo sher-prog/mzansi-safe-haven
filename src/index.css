@@ -23,7 +23,9 @@
     --secondary-foreground: 20 20% 15%;
 
     --muted: 30 20% 92%;
-    --muted-foreground: 20 10% 50%;
+    /* L=44% is the darkest-still-legible point that clears 4.5:1 WCAG AA against
+       both --background and --card in this theme (the binding constraint). */
+    --muted-foreground: 20 10% 44%;
 
     --accent: 35 70% 55%;
     --accent-foreground: 30 40% 96%;
@@ -67,7 +69,8 @@
     --secondary-foreground: 210 30% 12%;
 
     --muted: 200 15% 92%;
-    --muted-foreground: 210 15% 45%;
+    /* Same WCAG AA fix as the recipe theme above. */
+    --muted-foreground: 210 15% 44%;
 
     --accent: 175 40% 42%;
     --accent-foreground: 200 25% 98%;
@@ -79,6 +82,13 @@
     --safety-teal: 175 50% 35%;
     --safety-calm: 200 25% 95%;
     --safety-alert: 0 75% 55%;
+
+    /* The Panic tab is deliberately its own high-contrast red, not the calm teal
+       used elsewhere — these three tokens are the only addition this palette
+       genuinely needed (existing --safety-alert covers the bright accent). */
+    --safety-alert-bg: 0 85% 6%;
+    --safety-alert-foreground: 0 100% 85%;
+    --safety-alert-deep: 0 100% 15%;
   }
 }
 

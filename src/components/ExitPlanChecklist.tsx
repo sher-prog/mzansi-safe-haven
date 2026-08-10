@@ -3,26 +3,34 @@ import { motion } from "framer-motion";
 import { CheckCircle2, Circle, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { getItem, setItem } from "@/lib/secureStorage";
+import { useTranslation } from "@/i18n";
 
 const STORAGE_KEY = "checklist";
 
-const defaultItems = [
-  { id: "id", label: "ID document / passport copy", category: "Documents" },
-  { id: "birth", label: "Children's birth certificates", category: "Documents" },
-  { id: "protection", label: "Protection order copy", category: "Documents" },
-  { id: "medical", label: "Medical records", category: "Documents" },
-  { id: "cash", label: "Emergency cash hidden safely", category: "Essentials" },
-  { id: "phone", label: "Prepaid phone or airtime", category: "Essentials" },
-  { id: "keys", label: "Spare set of keys", category: "Essentials" },
-  { id: "clothes", label: "Change of clothes (you + children)", category: "Essentials" },
-  { id: "meds", label: "Medication / prescriptions", category: "Essentials" },
-  { id: "contacts", label: "Trusted contact numbers memorised", category: "Safety" },
-  { id: "route", label: "Exit route planned", category: "Safety" },
-  { id: "signal", label: "Code word set with trusted person", category: "Safety" },
-  { id: "shelter", label: "Shelter location identified", category: "Safety" },
+type Category = "Documents" | "Essentials" | "Safety";
+
+// ids and categories are stable, untranslated keys used for storage/grouping —
+// the displayed label/category name is looked up via t() at render time.
+const defaultItems: { id: string; category: Category }[] = [
+  { id: "id", category: "Documents" },
+  { id: "birth", category: "Documents" },
+  { id: "protection", category: "Documents" },
+  { id: "medical", category: "Documents" },
+  { id: "cash", category: "Essentials" },
+  { id: "phone", category: "Essentials" },
+  { id: "keys", category: "Essentials" },
+  { id: "clothes", category: "Essentials" },
+  { id: "meds", category: "Essentials" },
+  { id: "contacts", category: "Safety" },
+  { id: "route", category: "Safety" },
+  { id: "signal", category: "Safety" },
+  { id: "shelter", category: "Safety" },
 ];
 
+const CATEGORIES: Category[] = ["Documents", "Essentials", "Safety"];
+
 const ExitPlanChecklist = () => {
+  const { t } = useTranslation();
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [loaded, setLoaded] = useState(false);
 
@@ -49,10 +57,10 @@ const ExitPlanChecklist = () => {
       try {
         await setItem(STORAGE_KEY, [...checked]);
       } catch {
-        toast.error("Failed to save checklist. Storage may be full or locked.");
+        toast.error(t("checklist.saveError"));
       }
     })();
-  }, [checked, loaded]);
+  }, [checked, loaded, t]);
 
   const toggle = (id: string) => {
     setChecked((prev) => {
@@ -63,28 +71,31 @@ const ExitPlanChecklist = () => {
     });
   };
 
-  const categories = [...new Set(defaultItems.map((i) => i.category))];
   const progress = Math.round((checked.size / defaultItems.length) * 100);
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-          <FileText className="w-5 h-5 text-primary" />
-          Exit Plan Checklist
+          <FileText className="w-5 h-5 text-primary" aria-hidden="true" />
+          {t("checklist.title")}
         </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Prepare these items in advance. Your progress is saved privately on this device.
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{t("checklist.subtitle")}</p>
       </div>
 
       {/* Progress */}
       <div className="space-y-1.5">
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>{checked.size} of {defaultItems.length} ready</span>
+          <span>{t("checklist.readyCount", { checked: checked.size, total: defaultItems.length })}</span>
           <span>{progress}%</span>
         </div>
-        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+        <div
+          className="h-2 bg-secondary rounded-full overflow-hidden"
+          role="progressbar"
+          aria-valuenow={progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
           <motion.div
             className="h-full bg-primary rounded-full"
             initial={{ width: 0 }}
@@ -95,10 +106,10 @@ const ExitPlanChecklist = () => {
       </div>
 
       {/* Items by category */}
-      {categories.map((cat) => (
+      {CATEGORIES.map((cat) => (
         <div key={cat} className="space-y-2">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {cat}
+            {t(`checklist.categories.${cat}`)}
           </h3>
           {defaultItems
             .filter((item) => item.category === cat)
@@ -106,21 +117,20 @@ const ExitPlanChecklist = () => {
               <button
                 key={item.id}
                 onClick={() => toggle(item.id)}
-                className="flex items-center gap-3 w-full text-left p-3 rounded-lg bg-card border border-border hover:border-primary/30 transition-colors"
+                aria-pressed={checked.has(item.id)}
+                className="flex items-center gap-3 w-full min-h-[48px] text-left p-3 rounded-lg bg-card border border-border hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {checked.has(item.id) ? (
-                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" aria-hidden="true" />
                 ) : (
-                  <Circle className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                  <Circle className="w-5 h-5 text-muted-foreground flex-shrink-0" aria-hidden="true" />
                 )}
                 <span
                   className={`text-sm ${
-                    checked.has(item.id)
-                      ? "text-muted-foreground line-through"
-                      : "text-foreground"
+                    checked.has(item.id) ? "text-muted-foreground line-through" : "text-foreground"
                   }`}
                 >
-                  {item.label}
+                  {t(`checklist.items.${item.id}`)}
                 </span>
               </button>
             ))}

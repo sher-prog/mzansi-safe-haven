@@ -16,11 +16,14 @@ import { pickAudioMimeType } from "@/lib/audioMime";
 import { deleteBlob } from "@/lib/blobStore";
 import { useBlobUrl } from "@/hooks/use-blob-url";
 import LoyaltyGate from "@/components/LoyaltyGate";
+import { useTranslation } from "@/i18n";
 import { toast } from "sonner";
+
+type Category = "Incident" | "Pattern" | "Timing" | "Important Info";
 
 interface Note {
   id: string;
-  category: "Incident" | "Pattern" | "Timing" | "Important Info";
+  category: Category;
   what: string;
   trigger: string;
   createdAt: string;
@@ -28,6 +31,7 @@ interface Note {
   audio?: MediaRecord;
 }
 
+const CATEGORIES: Category[] = ["Incident", "Pattern", "Timing", "Important Info"];
 const RECORDING_LIMIT_SECONDS = 180;
 
 const formatCountdown = (seconds: number) => {
@@ -40,34 +44,38 @@ const formatCountdown = (seconds: number) => {
  * in the blob store and is only ever pulled for export. */
 const MediaThumb = ({ media, className, alt }: { media: MediaRecord; className?: string; alt: string }) => {
   const url = useBlobUrl(media.thumbKey ?? media.originalKey);
-  if (!url) return <div className={`${className} bg-slate-700 animate-pulse`} />;
+  if (!url) return <div className={`${className} bg-muted animate-pulse`} />;
   return <img src={url} alt={alt} className={className} />;
 };
 
 const MediaAudioPlayer = ({ media, className }: { media: MediaRecord; className?: string }) => {
+  const { t } = useTranslation();
   const url = useBlobUrl(media.originalKey);
   const [playbackError, setPlaybackError] = useState(false);
   if (!url) return null;
   if (playbackError) {
-    return (
-      <p className="text-xs text-amber-400">
-        This recording can't play on this device. The original file is still saved
-        and will be included if you export an evidence pack.
-      </p>
-    );
+    return <p className="text-xs text-amber-600">{t("notes.playbackError")}</p>;
   }
   return <audio controls src={url} className={className} onError={() => setPlaybackError(true)} />;
 };
 
-const EvidenceMeta = ({ media }: { media: MediaRecord }) => (
-  <p className="text-[10px] text-gray-500 mt-1 break-all">
-    Captured {new Date(media.capturedAt).toLocaleString()}
-    {media.gps ? ` • GPS ${media.gps.lat.toFixed(5)}, ${media.gps.lng.toFixed(5)}` : " • GPS not captured"}
-    {` • SHA-256 ${media.sha256.slice(0, 16)}…`}
-  </p>
-);
+const EvidenceMeta = ({ media }: { media: MediaRecord }) => {
+  const { t } = useTranslation();
+  return (
+    <p className="text-[10px] text-muted-foreground mt-1 break-all">
+      {t("evidenceMeta.captured", { date: new Date(media.capturedAt).toLocaleString() })}
+      {" • "}
+      {media.gps
+        ? t("evidenceMeta.gps", { lat: media.gps.lat.toFixed(5), lng: media.gps.lng.toFixed(5) })
+        : t("evidenceMeta.gpsNotCaptured")}
+      {" • "}
+      {t("evidenceMeta.sha256", { hash: media.sha256.slice(0, 16) })}
+    </p>
+  );
+};
 
 const SafetyNotes = () => {
+  const { t } = useTranslation();
   const [notes, setNotes] = useState<Note[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [expandedNote, setExpandedNote] = useState<string | null>(null);
@@ -75,7 +83,7 @@ const SafetyNotes = () => {
   const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
 
   // Form state
-  const [category, setCategory] = useState<Note["category"]>("Incident");
+  const [category, setCategory] = useState<Category>("Incident");
   const [what, setWhat] = useState("");
   const [trigger, setTrigger] = useState("");
   const [photo, setPhoto] = useState<MediaRecord | undefined>();
@@ -159,7 +167,7 @@ const SafetyNotes = () => {
         setShowUnlockPrompt(true);
       } else {
         if (import.meta.env.DEV) console.error('Failed to save note:', error);
-        toast.error("Failed to save. Storage may be full.");
+        toast.error(t("notes.saveError"));
       }
     }
   };
@@ -176,7 +184,7 @@ const SafetyNotes = () => {
       if (note?.audio) deleteBlob(note.audio.originalKey).catch(() => {});
     } catch (error) {
       if (import.meta.env.DEV) console.error('Failed to delete note:', error);
-      toast.error("Failed to save. Storage may be full.");
+      toast.error(t("notes.saveError"));
     }
     setExpandedNote(null);
     setShowDeleteConfirm(null);
@@ -189,7 +197,7 @@ const SafetyNotes = () => {
   const processPhotoFile = useCallback(async (file: File, source: MediaSource) => {
     const status = await checkStorageUsage();
     if (status.level === "critical") {
-      toast.error(status.message ?? "Storage is almost full.");
+      toast.error(status.message ?? t("notes.saveError"));
       return;
     }
     try {
@@ -203,10 +211,10 @@ const SafetyNotes = () => {
         setShowUnlockPrompt(true);
       } else {
         if (import.meta.env.DEV) console.error("Failed to process photo:", error);
-        toast.error("Failed to process photo.");
+        toast.error(t("notes.photoError"));
       }
     }
-  }, []);
+  }, [t]);
 
   const handleCameraSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -225,7 +233,7 @@ const SafetyNotes = () => {
   const processAudioBlob = useCallback(async (blob: Blob) => {
     const status = await checkStorageUsage();
     if (status.level === "critical") {
-      toast.error(status.message ?? "Storage is almost full.");
+      toast.error(status.message ?? t("notes.saveError"));
       return;
     }
     try {
@@ -238,10 +246,10 @@ const SafetyNotes = () => {
         setShowUnlockPrompt(true);
       } else {
         if (import.meta.env.DEV) console.error("Failed to process recording:", error);
-        toast.error("Failed to process recording.");
+        toast.error(t("notes.recordingError"));
       }
     }
-  }, []);
+  }, [t]);
 
   const stopRecording = useCallback(() => {
     if (recorderRef.current && recorderRef.current.state !== "inactive") {
@@ -292,9 +300,9 @@ const SafetyNotes = () => {
         });
       }, 1000);
     } catch {
-      toast.error("Microphone access denied.");
+      toast.error(t("notes.micDenied"));
     }
-  }, [clearCountdown, processAudioBlob, stopRecording]);
+  }, [clearCountdown, processAudioBlob, stopRecording, t]);
 
   const handleUnlockSuccess = async () => {
     setShowUnlockPrompt(false);
@@ -313,7 +321,7 @@ const SafetyNotes = () => {
     await handleSaveNote();
   };
 
-  const getCategoryColor = (cat: Note["category"]) => {
+  const getCategoryColor = (cat: Category) => {
     switch (cat) {
       case "Incident": return "bg-red-600";
       case "Pattern": return "bg-amber-600";
@@ -332,80 +340,86 @@ const SafetyNotes = () => {
     text.length > max ? text.substring(0, max) + "..." : text;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#0F172A' }}>
+    <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white mb-2">Private Notes</h1>
-          <p className="text-gray-400 text-sm">Record incidents and patterns privately</p>
+          <h1 className="text-2xl font-bold text-foreground mb-2">{t("notes.title")}</h1>
+          <p className="text-muted-foreground text-sm">{t("notes.subtitle")}</p>
         </div>
         <Button
           onClick={() => setShowForm(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white min-h-[48px] flex items-center gap-2"
+          className="min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <Plus className="w-4 h-4" />
-          New Note
+          <Plus className="w-4 h-4" aria-hidden="true" />
+          {t("notes.newNote")}
         </Button>
       </div>
 
-      <p className="text-xs text-gray-500 mb-4">
-        Exporting an evidence pack or a backup? Find them under the "Backup" tab.
-      </p>
+      <p className="text-xs text-muted-foreground mb-4">{t("notes.findExportsHint")}</p>
 
       {/* Notes List */}
       <div className="space-y-3">
         {notes.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <p>No notes yet</p>
-            <p className="text-sm mt-1">Tap "New Note" to get started</p>
+          <div className="text-center py-12 text-muted-foreground">
+            <p>{t("notes.empty")}</p>
+            <p className="text-sm mt-1">{t("notes.emptyHint")}</p>
           </div>
         ) : (
           notes.map((note) => (
             <motion.div key={note.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
               <Card
-                className="bg-slate-800 border-slate-700 cursor-pointer min-h-[48px]"
+                className="bg-card border-border cursor-pointer min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                role="button"
+                tabIndex={0}
                 onClick={() => setExpandedNote(expandedNote === note.id ? null : note.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setExpandedNote(expandedNote === note.id ? null : note.id);
+                  }
+                }}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
                     <Badge className={`${getCategoryColor(note.category)} text-white border-none`}>
-                      {note.category}
+                      {t(`notes.form.categories.${note.category}`)}
                     </Badge>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <Calendar className="w-3 h-3 text-gray-400" />
-                        <span className="text-xs text-gray-400">{formatDate(note.createdAt)}</span>
-                        {note.photo && <ImageIcon className="w-3 h-3 text-blue-400" />}
-                        {note.audio && <Mic className="w-3 h-3 text-red-400" />}
+                        <Calendar className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
+                        <span className="text-xs text-muted-foreground">{formatDate(note.createdAt)}</span>
+                        {note.photo && <ImageIcon className="w-3 h-3 text-primary" aria-hidden="true" />}
+                        {note.audio && <Mic className="w-3 h-3 text-destructive" aria-hidden="true" />}
                       </div>
-                      <p className="text-white text-sm">
+                      <p className="text-foreground text-sm">
                         {expandedNote === note.id ? note.what : truncateText(note.what)}
                       </p>
 
                       {/* Thumbnail in collapsed view */}
                       {expandedNote !== note.id && note.photo && (
-                        <MediaThumb media={note.photo} alt="Evidence" className="mt-2 w-16 h-16 object-cover rounded" />
+                        <MediaThumb media={note.photo} alt={t("notes.photo")} className="mt-2 w-16 h-16 object-cover rounded" />
                       )}
 
                       {/* Expanded view */}
                       {expandedNote === note.id && (
                         <>
                           {note.trigger && (
-                            <div className="mt-3 pt-3 border-t border-slate-600">
-                              <p className="text-xs text-gray-400 mb-1">Trigger:</p>
-                              <p className="text-white text-sm">{note.trigger}</p>
+                            <div className="mt-3 pt-3 border-t border-border">
+                              <p className="text-xs text-muted-foreground mb-1">{t("notes.trigger")}</p>
+                              <p className="text-foreground text-sm">{note.trigger}</p>
                             </div>
                           )}
                           {note.photo && (
                             <div className="mt-3">
-                              <p className="text-xs text-gray-400 mb-1">Photo:</p>
-                              <MediaThumb media={note.photo} alt="Evidence" className="w-full max-w-md rounded-lg" />
+                              <p className="text-xs text-muted-foreground mb-1">{t("notes.photo")}</p>
+                              <MediaThumb media={note.photo} alt={t("notes.photo")} className="w-full max-w-md rounded-lg" />
                               <EvidenceMeta media={note.photo} />
                             </div>
                           )}
                           {note.audio && (
                             <div className="mt-3">
-                              <p className="text-xs text-gray-400 mb-1">Voice Recording:</p>
+                              <p className="text-xs text-muted-foreground mb-1">{t("notes.voiceRecording")}</p>
                               <MediaAudioPlayer media={note.audio} className="w-full" />
                               <EvidenceMeta media={note.audio} />
                             </div>
@@ -415,16 +429,17 @@ const SafetyNotes = () => {
                               onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(note.id); }}
                               variant="destructive"
                               size="sm"
-                              className="min-h-[48px] flex items-center gap-2"
+                              aria-label={t("notes.deleteLabel")}
+                              className="min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             >
-                              <Trash2 className="w-4 h-4" />
-                              Delete
+                              <Trash2 className="w-4 h-4" aria-hidden="true" />
+                              {t("common.delete")}
                             </Button>
                           </div>
                         </>
                       )}
                     </div>
-                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${expandedNote === note.id ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expandedNote === note.id ? 'rotate-180' : ''}`} aria-hidden="true" />
                   </div>
                 </CardContent>
               </Card>
@@ -454,103 +469,92 @@ const SafetyNotes = () => {
 
       {/* New Note Form Dialog */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
-        <DialogContent className="bg-slate-800 border-slate-700 text-white max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New Note</DialogTitle>
+            <DialogTitle>{t("notes.form.title")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="block text-[14px] mb-1" style={{ color: '#94A3B8' }}>Category</label>
-              <Select value={category} onValueChange={(v: Note["category"]) => setCategory(v)}>
-                <SelectTrigger className="min-h-[48px] w-full rounded-lg text-[16px] text-white border focus:ring-0 focus:ring-offset-0" style={{ background: '#1E293B', borderColor: '#334155', padding: '12px' }}>
+              <label htmlFor="note-category" className="block text-sm mb-1 text-muted-foreground">{t("notes.form.category")}</label>
+              <Select value={category} onValueChange={(v: Category) => setCategory(v)}>
+                <SelectTrigger id="note-category" className="min-h-[48px] w-full">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="border" style={{ background: '#1E293B', borderColor: '#334155' }}>
-                  <SelectItem value="Incident" className="text-white focus:text-white" style={{ background: '#1E293B' }}>Incident</SelectItem>
-                  <SelectItem value="Pattern" className="text-white focus:text-white" style={{ background: '#1E293B' }}>Pattern</SelectItem>
-                  <SelectItem value="Timing" className="text-white focus:text-white" style={{ background: '#1E293B' }}>Timing</SelectItem>
-                  <SelectItem value="Important Info" className="text-white focus:text-white" style={{ background: '#1E293B' }}>Important Info</SelectItem>
+                <SelectContent>
+                  {CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {t(`notes.form.categories.${cat}`)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <label className="block text-[14px] mb-1" style={{ color: '#94A3B8' }}>What happened?</label>
+              <label htmlFor="note-what" className="block text-sm mb-1 text-muted-foreground">{t("notes.form.whatLabel")}</label>
               <Textarea
+                id="note-what"
                 value={what}
                 onChange={(e) => setWhat(e.target.value)}
-                placeholder="Describe what happened..."
-                className="w-full rounded-lg text-[16px] text-white resize-none min-h-[120px] focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-[#64748B]"
-                style={{ background: '#1E293B', borderColor: '#334155', padding: '12px' }}
-                onFocus={(e) => e.target.style.borderColor = '#60A5FA'}
-                onBlur={(e) => e.target.style.borderColor = '#334155'}
+                placeholder={t("notes.form.whatPlaceholder")}
+                className="w-full resize-none min-h-[120px]"
               />
             </div>
 
             <div>
-              <label className="block text-[14px] mb-1" style={{ color: '#94A3B8' }}>What triggered it? (optional)</label>
+              <label htmlFor="note-trigger" className="block text-sm mb-1 text-muted-foreground">{t("notes.form.triggerLabel")}</label>
               <Input
+                id="note-trigger"
                 value={trigger}
                 onChange={(e) => setTrigger(e.target.value)}
-                placeholder="What led to this..."
-                className="w-full rounded-lg text-[16px] text-white min-h-[48px] focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-[#64748B]"
-                style={{ background: '#1E293B', borderColor: '#334155', padding: '12px' }}
-                onFocus={(e) => e.target.style.borderColor = '#60A5FA'}
-                onBlur={(e) => e.target.style.borderColor = '#334155'}
+                placeholder={t("notes.form.triggerPlaceholder")}
+                className="w-full min-h-[48px]"
               />
             </div>
 
             {/* Media attachments */}
             <div>
-              <label className="block text-[14px] mb-2" style={{ color: '#94A3B8' }}>Attachments</label>
-              <p className="text-[11px] mb-2" style={{ color: '#64748B' }}>
-                Photos and recordings are kept exactly as captured — for evidence, not
-                recompressed — with a timestamp and integrity fingerprint. Taking a photo
-                directly in the app is the stronger option: the timestamp and location are
-                recorded at that exact moment, not guessed from an older file.
-              </p>
+              <span className="block text-sm mb-2 text-muted-foreground">{t("notes.form.attachments")}</span>
+              <p className="text-xs mb-2 text-muted-foreground">{t("notes.form.attachmentsHint")}</p>
               <div className="flex gap-2 flex-wrap">
                 <Button
                   type="button"
                   onClick={() => { beginHandoff(); cameraInputRef.current?.click(); }}
-                  className="min-h-[48px] bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                  className="min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  <Camera className="w-4 h-4" />
-                  📷 Take Photo
+                  <Camera className="w-4 h-4" aria-hidden="true" />
+                  {t("notes.form.takePhoto")}
                 </Button>
                 <Button
                   type="button"
                   onClick={() => { beginHandoff(); galleryInputRef.current?.click(); }}
-                  className="min-h-[48px] text-white border border-slate-600 hover:bg-slate-700 flex items-center gap-2"
+                  className="min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   variant="outline"
-                  style={{ background: '#1E293B', borderColor: '#334155' }}
                 >
-                  <ImageIcon className="w-4 h-4" />
-                  Add from Gallery
+                  <ImageIcon className="w-4 h-4" aria-hidden="true" />
+                  {t("notes.form.addFromGallery")}
                 </Button>
 
                 {!isRecording ? (
                   <Button
                     type="button"
                     onClick={startRecording}
-                    className="min-h-[48px] text-white border border-slate-600 hover:bg-slate-700 flex items-center gap-2"
+                    className="min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     variant="outline"
-                    style={{ background: '#1E293B', borderColor: '#334155' }}
                   >
-                    <Mic className="w-4 h-4" />
-                    🎤 Record Voice
+                    <Mic className="w-4 h-4" aria-hidden="true" />
+                    {t("notes.form.recordVoice")}
                   </Button>
                 ) : (
                   <Button
                     type="button"
                     onClick={stopRecording}
-                    className="min-h-[48px] text-white border border-red-500 hover:bg-red-900/30 flex items-center gap-2 animate-pulse"
+                    className="min-h-[48px] flex items-center gap-2 animate-pulse border-destructive text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     variant="outline"
-                    style={{ background: '#1E293B', borderColor: '#EF4444' }}
                   >
-                    <Square className="w-4 h-4 text-red-500" />
-                    <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    ⏹ Stop ({formatCountdown(recordingSecondsLeft)})
+                    <Square className="w-4 h-4" aria-hidden="true" />
+                    <span className="inline-block w-2 h-2 rounded-full bg-destructive animate-pulse" aria-hidden="true" />
+                    {t("notes.form.stopRecording", { time: formatCountdown(recordingSecondsLeft) })}
                   </Button>
                 )}
               </div>
@@ -558,10 +562,11 @@ const SafetyNotes = () => {
               {/* Photo preview */}
               {photo && (
                 <div className="mt-3 relative inline-block">
-                  <MediaThumb media={photo} alt="Attached" className="w-24 h-24 object-cover rounded-lg" />
+                  <MediaThumb media={photo} alt={t("notes.form.takePhoto")} className="w-24 h-24 object-cover rounded-lg" />
                   <button
                     onClick={() => setPhoto(undefined)}
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center"
+                    aria-label={t("notes.form.removePhotoLabel")}
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring before:absolute before:-inset-2.5 before:content-['']"
                   >
                     ✕
                   </button>
@@ -570,15 +575,12 @@ const SafetyNotes = () => {
               )}
 
               {showImportNotice && (
-                <div className="mt-3 flex items-start gap-2 bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                  <p className="text-xs text-gray-300 leading-relaxed flex-1">
-                    Saved securely. You can now delete the original from your gallery if you
-                    wish — it will remain here.
-                  </p>
+                <div className="mt-3 flex items-start gap-2 bg-primary/10 border border-primary/20 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground leading-relaxed flex-1">{t("notes.form.importNotice")}</p>
                   <button
                     onClick={() => setShowImportNotice(false)}
-                    aria-label="Dismiss"
-                    className="text-gray-400 hover:text-white text-xs flex-shrink-0"
+                    aria-label={t("common.dismiss")}
+                    className="relative text-muted-foreground hover:text-foreground text-xs flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded before:absolute before:-inset-2.5 before:content-['']"
                   >
                     ✕
                   </button>
@@ -594,7 +596,8 @@ const SafetyNotes = () => {
                   </div>
                   <button
                     onClick={() => setAudio(undefined)}
-                    className="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center flex-shrink-0"
+                    aria-label={t("notes.form.removeAudioLabel")}
+                    className="relative w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring before:absolute before:-inset-2.5 before:content-['']"
                   >
                     ✕
                   </button>
@@ -603,17 +606,17 @@ const SafetyNotes = () => {
             </div>
 
             <div>
-              <label className="block text-[14px] mb-1" style={{ color: '#94A3B8' }}>Date & Time</label>
-              <p className="text-sm" style={{ color: '#94A3B8' }}>{formatDate(new Date().toISOString())}</p>
+              <span className="block text-sm mb-1 text-muted-foreground">{t("notes.form.dateTime")}</span>
+              <p className="text-sm text-muted-foreground">{formatDate(new Date().toISOString())}</p>
             </div>
           </div>
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={resetForm} className="border-slate-600 text-white hover:bg-slate-700 min-h-[48px]">
-              Cancel
+            <Button variant="outline" onClick={resetForm} className="min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+              {t("common.cancel")}
             </Button>
-            <Button onClick={handleSaveNote} disabled={!what.trim()} className="bg-blue-600 hover:bg-blue-700 min-h-[48px]">
-              Save Note
+            <Button onClick={handleSaveNote} disabled={!what.trim()} className="min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+              {t("notes.form.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -621,13 +624,13 @@ const SafetyNotes = () => {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!showDeleteConfirm} onOpenChange={() => setShowDeleteConfirm(null)}>
-        <DialogContent className="bg-slate-800 border-slate-700 text-white">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete this note?</DialogTitle>
+            <DialogTitle>{t("notes.deleteConfirmTitle")}</DialogTitle>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="border-slate-600 text-white hover:bg-slate-700 min-h-[48px]">No</Button>
-            <Button variant="destructive" onClick={() => showDeleteConfirm && handleDeleteNote(showDeleteConfirm)} className="min-h-[48px]">Yes</Button>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">{t("common.no")}</Button>
+            <Button variant="destructive" onClick={() => showDeleteConfirm && handleDeleteNote(showDeleteConfirm)} className="min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">{t("common.yes")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

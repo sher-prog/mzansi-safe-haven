@@ -37,8 +37,7 @@ describe("pickAudioMimeType", () => {
   });
 
   it("returns undefined when MediaRecorder isn't available at all", () => {
-    // simulating an environment without MediaRecorder — this tsconfig has
-    // strictNullChecks off, so no @ts-expect-error is needed for this assignment
+    // @ts-expect-error -- simulating an environment without MediaRecorder at all
     globalThis.MediaRecorder = undefined;
     expect(pickAudioMimeType()).toBeUndefined();
   });

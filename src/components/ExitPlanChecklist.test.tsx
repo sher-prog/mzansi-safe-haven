@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { renderWithProviders as render } from "@/test/test-utils";
 import * as secureStorage from "@/lib/secureStorage";
 import ExitPlanChecklist from "./ExitPlanChecklist";
 
@@ -33,7 +34,9 @@ describe("ExitPlanChecklist persistence across lock/unlock", () => {
     const button = reloadedItem.closest("button");
     expect(button).not.toBeNull();
     expect(button!.textContent).toContain("ID document / passport copy");
-    // A checked item renders CheckCircle2 (not the outline Circle) and gets a line-through label.
-    expect(reloadedItem.className).toContain("line-through");
+    // The item's label renders on the very first paint regardless of checked state — the
+    // line-through class only appears once the async storage load resolves and re-renders,
+    // so this has to be polled rather than asserted immediately after findByText.
+    await waitFor(() => expect(reloadedItem.className).toContain("line-through"));
   });
 });

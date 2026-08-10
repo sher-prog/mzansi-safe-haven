@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getItem, setItem } from "@/lib/secureStorage";
 import { beginHandoff } from "@/lib/appFocus";
+import { useTranslation } from "@/i18n";
 
 interface TrustedContact {
   name: string;
@@ -30,6 +31,7 @@ function isLikelyMobileDevice(): boolean {
 }
 
 const PanicButton = () => {
+  const { t } = useTranslation();
   const [holding, setHolding] = useState(false);
   const [progress, setProgress] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -74,11 +76,11 @@ const PanicButton = () => {
       await setItem("trusted_contact", newContact);
       setContact(newContact);
       setShowContactForm(false);
-      toast.success("Trusted contact saved.");
+      toast.success(t("panic.contactForm.saved"));
     } catch {
-      toast.error("Failed to save trusted contact.");
+      toast.error(t("panic.contactForm.saveError"));
     }
-  }, [formName, formPhone]);
+  }, [formName, formPhone, t]);
 
   const openEditContact = useCallback(() => {
     setFormName(contact?.name ?? "");
@@ -99,7 +101,7 @@ const PanicButton = () => {
         link.href = `sms:${contact.phone}?body=${encodeURIComponent(message)}`;
         link.click();
       } catch {
-        toast.error("Couldn't open your messaging app. Try calling 0800 150 150 directly.");
+        toast.error(t("panic.smsFailed"));
       }
       // sms: links silently do nothing on most desktops (and some Android devices with
       // no default SMS handler) — offer a copyable fallback there, without changing
@@ -108,7 +110,7 @@ const PanicButton = () => {
         setFallback({ phone: contact.phone, message });
       }
     },
-    [contact],
+    [contact, t],
   );
 
   const triggerPanic = useCallback(() => {
@@ -117,10 +119,10 @@ const PanicButton = () => {
     beginHandoff();
 
     if (!contact) {
-      toast.info("No trusted contact set — connecting you to the TEARS helpline instead.");
+      toast.info(t("panic.noContactFallback"));
       window.location.href = TEARS_FALLBACK_TEL;
       if (!isLikelyMobileDevice()) {
-        setFallback({ phone: null, message: "TEARS Helpline: 0800 60 10 10" });
+        setFallback({ phone: null, message: t("panic.helplines.tearsFallbackMessage") });
       }
       return;
     }
@@ -135,7 +137,7 @@ const PanicButton = () => {
       () => sendSMS(),
       { timeout: 10000, maximumAge: 0 },
     );
-  }, [contact, sendSMS]);
+  }, [contact, sendSMS, t]);
 
   const startHold = useCallback(() => {
     if (intervalRef.current) return;
@@ -209,9 +211,9 @@ const PanicButton = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Couldn't copy automatically — please select and copy the text manually.");
+      toast.error(t("panic.desktopFallback.copyError"));
     }
-  }, [fallback]);
+  }, [fallback, t]);
 
   const dasharray = 283;
   const dashoffset = dasharray - (dasharray * progress) / 100;
@@ -220,62 +222,61 @@ const PanicButton = () => {
 
   if (showContactForm) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#1a0000" }}>
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-safety-alert-bg">
         <div className="w-full max-w-xs space-y-4">
-          <h2 className="text-white font-bold text-lg text-center">
-            {contact ? "Edit Trusted Contact" : "Add a Trusted Contact"}
+          <h2 className="text-safety-alert-foreground font-bold text-lg text-center">
+            {contact ? t("panic.contactForm.editTitle") : t("panic.contactForm.addTitle")}
           </h2>
-          <p className="text-sm text-center" style={{ color: "#ff9999" }}>
-            This is who the panic button messages when you hold it. Stored on this device only.
-          </p>
+          <p className="text-sm text-center text-safety-alert-foreground/80">{t("panic.contactForm.explanation")}</p>
           <div>
-            <label className="block text-sm mb-1" style={{ color: "#ff9999" }}>
-              Name
+            <label htmlFor="panic-contact-name" className="block text-sm mb-1 text-safety-alert-foreground/80">
+              {t("panic.contactForm.nameLabel")}
             </label>
             <Input
+              id="panic-contact-name"
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
-              placeholder="e.g. Mom, Thandi..."
-              className="min-h-[48px] bg-white/5 text-white border-white/20"
+              placeholder={t("panic.contactForm.namePlaceholder")}
+              className="min-h-[48px] bg-safety-alert-foreground/5 text-safety-alert-foreground border-safety-alert-foreground/20 placeholder:text-safety-alert-foreground/40"
             />
           </div>
           <div>
-            <label className="block text-sm mb-1" style={{ color: "#ff9999" }}>
-              Phone Number
+            <label htmlFor="panic-contact-phone" className="block text-sm mb-1 text-safety-alert-foreground/80">
+              {t("panic.contactForm.phoneLabel")}
             </label>
             <Input
+              id="panic-contact-phone"
               value={formPhone}
               onChange={(e) => setFormPhone(e.target.value)}
-              placeholder="e.g. +27821234567"
+              placeholder={t("panic.contactForm.phonePlaceholder")}
               type="tel"
-              className="min-h-[48px] bg-white/5 text-white border-white/20"
+              className="min-h-[48px] bg-safety-alert-foreground/5 text-safety-alert-foreground border-safety-alert-foreground/20 placeholder:text-safety-alert-foreground/40"
             />
           </div>
           <div className="flex gap-2">
             {contact && (
               <Button
                 variant="outline"
-                className="min-h-[48px] flex-1 border-white/20 text-white hover:bg-white/10"
+                className="min-h-[48px] flex-1 border-safety-alert-foreground/20 text-safety-alert-foreground hover:bg-safety-alert-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-safety-alert-foreground"
                 onClick={() => setShowContactForm(false)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
             )}
             <Button
-              className="min-h-[48px] flex-1 bg-red-600 hover:bg-red-700 text-white"
+              className="min-h-[48px] flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-safety-alert-foreground"
               onClick={handleSaveContact}
               disabled={!formName.trim() || !formPhone.trim()}
             >
-              Save Contact
+              {t("panic.contactForm.save")}
             </Button>
           </div>
           {!contact && (
             <button
               onClick={() => setShowContactForm(false)}
-              className="w-full text-center text-xs underline min-h-[48px]"
-              style={{ color: "#ff9999" }}
+              className="w-full text-center text-xs underline min-h-[48px] text-safety-alert-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-safety-alert-foreground rounded"
             >
-              Skip for now — hold button will call the TEARS helpline instead
+              {t("panic.contactForm.skip")}
             </button>
           )}
         </div>
@@ -284,45 +285,28 @@ const PanicButton = () => {
   }
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-6"
-      style={{ background: "#1a0000" }}
-    >
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-safety-alert-bg">
       {contact && (
         <button
           onClick={openEditContact}
-          aria-label="Edit trusted contact"
-          className="flex items-center gap-1.5 text-xs mb-6 min-h-[48px] px-3"
-          style={{ color: "#ff9999" }}
+          aria-label={t("panic.editContactLabel")}
+          className="flex items-center gap-1.5 text-xs mb-6 min-h-[48px] px-3 text-safety-alert-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-safety-alert-foreground rounded"
         >
-          <Pencil className="w-3.5 h-3.5" />
-          Trusted contact: {contact.name}
+          <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+          {t("panic.trustedContact", { name: contact.name })}
         </button>
       )}
 
       {/* Hold button with progress ring */}
       <div className="relative flex items-center justify-center mb-4">
-        <svg
-          width="180"
-          height="180"
-          viewBox="0 0 100 100"
-          className="absolute"
-          style={{ transform: "rotate(-90deg)" }}
-        >
+        <svg width="180" height="180" viewBox="0 0 100 100" className="absolute" style={{ transform: "rotate(-90deg)" }} aria-hidden="true">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="hsl(var(--safety-alert-foreground) / 0.15)" strokeWidth="4" />
           <circle
             cx="50"
             cy="50"
             r="45"
             fill="none"
-            stroke="rgba(255,255,255,0.1)"
-            strokeWidth="4"
-          />
-          <circle
-            cx="50"
-            cy="50"
-            r="45"
-            fill="none"
-            stroke="#ff4444"
+            stroke="hsl(var(--safety-alert))"
             strokeWidth="4"
             strokeLinecap="round"
             strokeDasharray={dasharray}
@@ -337,62 +321,52 @@ const PanicButton = () => {
           onPointerLeave={cancelHold}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
-          aria-label="Hold for 2 seconds to send an emergency alert with your location"
-          className="w-40 h-40 rounded-full flex items-center justify-center select-none"
+          aria-label={t("panic.holdLabel")}
+          className="w-40 h-40 rounded-full flex items-center justify-center select-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-safety-alert-foreground focus-visible:ring-offset-4 focus-visible:ring-offset-safety-alert-bg"
           style={{
-            WebkitTapHighlightColor: 'transparent',
-            touchAction: 'none',
-            userSelect: 'none',
+            WebkitTapHighlightColor: "transparent",
+            touchAction: "none",
+            userSelect: "none",
             background: holding
-              ? "radial-gradient(circle, #cc0000, #660000)"
-              : "radial-gradient(circle, #990000, #440000)",
+              ? "radial-gradient(circle, hsl(var(--safety-alert)), hsl(var(--safety-alert-deep)))"
+              : "radial-gradient(circle, hsl(var(--safety-alert) / 0.65), hsl(var(--safety-alert-deep)))",
             boxShadow: holding
-              ? "0 0 40px rgba(255,0,0,0.5)"
-              : "0 0 20px rgba(255,0,0,0.2)",
+              ? "0 0 40px hsl(var(--safety-alert) / 0.5)"
+              : "0 0 20px hsl(var(--safety-alert) / 0.2)",
           }}
         >
-          <span
-            className="text-white font-bold text-sm text-center leading-tight"
-            style={{ userSelect: "none" }}
-          >
-            HOLD FOR
-            <br />
-            HELP
+          <span className="text-safety-alert-foreground font-bold text-sm text-center leading-tight select-none">
+            {t("panic.holdButton")}
           </span>
         </button>
       </div>
 
-      <p className="text-center text-sm max-w-[260px] mb-10" style={{ color: "#ff9999" }}>
-        Hold 2 seconds — your SMS app will open ready to send your location
-      </p>
+      <p className="text-center text-sm max-w-[260px] mb-10 text-safety-alert-foreground/80">{t("panic.holdInstruction")}</p>
 
       {/* Desktop/non-mobile fallback: sms:/tel: links don't do anything on most
           laptops, so surface the number and message as selectable/copyable text. */}
       {fallback && (
-        <div className="w-full max-w-xs mb-6 rounded-lg p-4 space-y-3" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)" }}>
-          <p className="text-xs" style={{ color: "#ff9999" }}>
-            This device may not have opened a messaging app automatically. Send this
-            yourself instead:
-          </p>
+        <div className="w-full max-w-xs mb-6 rounded-lg p-4 space-y-3 bg-safety-alert-foreground/5 border border-safety-alert-foreground/15">
+          <p className="text-xs text-safety-alert-foreground/80">{t("panic.desktopFallback.explanation")}</p>
           {fallback.phone && (
-            <p className="text-sm font-semibold text-white select-text break-all">{fallback.phone}</p>
+            <p className="text-sm font-semibold text-safety-alert-foreground select-text break-all">{fallback.phone}</p>
           )}
-          <p className="text-sm text-white select-text leading-relaxed">{fallback.message}</p>
+          <p className="text-sm text-safety-alert-foreground select-text leading-relaxed">{fallback.message}</p>
           <div className="flex gap-2">
             <Button
               onClick={handleCopyMessage}
               variant="outline"
-              className="min-h-[48px] flex-1 border-white/20 text-white hover:bg-white/10 flex items-center gap-2"
+              className="min-h-[48px] flex-1 border-safety-alert-foreground/20 text-safety-alert-foreground hover:bg-safety-alert-foreground/10 flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-safety-alert-foreground"
             >
-              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              {copied ? "Copied" : "Copy Message"}
+              {copied ? <Check className="w-4 h-4" aria-hidden="true" /> : <Copy className="w-4 h-4" aria-hidden="true" />}
+              {copied ? t("panic.desktopFallback.copied") : t("panic.desktopFallback.copyMessage")}
             </Button>
             <Button
               onClick={() => setFallback(null)}
               variant="outline"
-              className="min-h-[48px] border-white/20 text-white hover:bg-white/10"
+              className="min-h-[48px] border-safety-alert-foreground/20 text-safety-alert-foreground hover:bg-safety-alert-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-safety-alert-foreground"
             >
-              Dismiss
+              {t("panic.desktopFallback.dismiss")}
             </Button>
           </div>
         </div>
@@ -402,45 +376,21 @@ const PanicButton = () => {
       <div className="w-full max-w-xs space-y-2">
         <a
           href="tel:0800150150"
-          style={{
-            display: "block",
-            padding: "14px 0",
-            color: "white",
-            textDecoration: "none",
-            fontSize: "18px",
-            minHeight: "48px",
-            textAlign: "center",
-          }}
+          className="block text-center text-safety-alert-foreground no-underline text-lg min-h-[48px] py-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-safety-alert-foreground rounded"
         >
-          GBV Helpline: 0800 150 150
+          {t("panic.helplines.gbv")}
         </a>
         <a
           href="tel:10111"
-          style={{
-            display: "block",
-            padding: "14px 0",
-            color: "white",
-            textDecoration: "none",
-            fontSize: "18px",
-            minHeight: "48px",
-            textAlign: "center",
-          }}
+          className="block text-center text-safety-alert-foreground no-underline text-lg min-h-[48px] py-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-safety-alert-foreground rounded"
         >
-          Police: 10111
+          {t("panic.helplines.police")}
         </a>
         <a
           href="tel:0800601010"
-          style={{
-            display: "block",
-            padding: "14px 0",
-            color: "white",
-            textDecoration: "none",
-            fontSize: "18px",
-            minHeight: "48px",
-            textAlign: "center",
-          }}
+          className="block text-center text-safety-alert-foreground no-underline text-lg min-h-[48px] py-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-safety-alert-foreground rounded"
         >
-          TEARS: 0800 60 10 10
+          {t("panic.helplines.tears")}
         </a>
       </div>
     </div>

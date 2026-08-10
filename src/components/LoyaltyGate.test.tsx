@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithProviders as render } from "@/test/test-utils";
 import { toast } from "sonner";
 import * as secureStorage from "@/lib/secureStorage";
 import LoyaltyGate from "./LoyaltyGate";
@@ -39,6 +40,28 @@ describe("LoyaltyGate", () => {
     render(<LoyaltyGate onSuccess={onSuccess} onBack={vi.fn()} />);
 
     expect(screen.getByText("Loyalty Code")).toBeInTheDocument();
+    tapDigits("4321");
+    fireEvent.click(screen.getByText("Redeem Code"));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(secureStorage.isUnlocked()).toBe(true);
+  });
+
+  it("rejects an incorrect PIN (decoy rejection) — shows an error and never unlocks", async () => {
+    await secureStorage.setupPin("4321");
+    secureStorage.lock();
+    const onSuccess = vi.fn();
+    render(<LoyaltyGate onSuccess={onSuccess} onBack={vi.fn()} />);
+
+    tapDigits("0000");
+    fireEvent.click(screen.getByText("Redeem Code"));
+
+    await screen.findByText("Code not recognised — please check your till slip.");
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(secureStorage.isUnlocked()).toBe(false);
+
+    // The PIN field is cleared after a wrong guess, and a correct retry still works —
+    // a wrong code doesn't lock the user out or leave the gate in a broken state.
     tapDigits("4321");
     fireEvent.click(screen.getByText("Redeem Code"));
 

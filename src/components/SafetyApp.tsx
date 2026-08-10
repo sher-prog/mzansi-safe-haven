@@ -9,6 +9,7 @@ import Vault from "./Vault";
 import BackupRestore from "./BackupRestore";
 import { isHandoffActive, endHandoff } from "@/lib/appFocus";
 import { requestPersistentStorageOnce } from "@/lib/storagePersistence";
+import { useTranslation } from "@/i18n";
 
 interface SafetyAppProps {
   onExit: () => void;
@@ -17,6 +18,7 @@ interface SafetyAppProps {
 type Tab = "checklist" | "help" | "panic" | "notes" | "vault" | "backup";
 
 const SafetyApp = ({ onExit }: SafetyAppProps) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>("checklist");
 
   // Best-effort, non-blocking — see src/lib/storagePersistence.ts. Requested once per
@@ -56,12 +58,12 @@ const SafetyApp = ({ onExit }: SafetyAppProps) => {
   }, [onExit]);
 
   const tabs: { id: Tab; label: string; icon?: React.ReactNode }[] = [
-    { id: "checklist", label: "Exit Plan" },
-    { id: "help", label: "Get Help" },
-    { id: "panic", label: "Panic" },
-    { id: "notes", label: "My Notes", icon: <span className="text-sm">📝</span> },
-    { id: "vault", label: "Vault", icon: <span className="text-sm">🔒</span> },
-    { id: "backup", label: "Backup", icon: <span className="text-sm">💾</span> },
+    { id: "checklist", label: t("safetyApp.tabs.checklist") },
+    { id: "help", label: t("safetyApp.tabs.help") },
+    { id: "panic", label: t("safetyApp.tabs.panic") },
+    { id: "notes", label: t("safetyApp.tabs.notes"), icon: <span className="text-sm" aria-hidden="true">📝</span> },
+    { id: "vault", label: t("safetyApp.tabs.vault"), icon: <span className="text-sm" aria-hidden="true">🔒</span> },
+    { id: "backup", label: t("safetyApp.tabs.backup"), icon: <span className="text-sm" aria-hidden="true">💾</span> },
   ];
 
   return (
@@ -76,38 +78,37 @@ const SafetyApp = ({ onExit }: SafetyAppProps) => {
       <header className="sticky top-0 z-10 bg-background/90 backdrop-blur-md border-b border-border">
         <div className="flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-2">
-            <Shield className="w-6 h-6 text-primary" />
-            <span className="font-sans text-lg font-bold text-foreground">SafeExit</span>
+            <Shield className="w-6 h-6 text-primary" aria-hidden="true" />
+            <span className="font-sans text-lg font-bold text-foreground">{t("safetyApp.appName")}</span>
           </div>
           <button
             onClick={onExit}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md bg-secondary"
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md bg-secondary min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Quick Exit
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+            {t("safetyApp.quickExit")}
           </button>
         </div>
       </header>
 
       {/* Tab Navigation */}
-      <div className="flex border-b border-border overflow-x-auto">
+      <div role="tablist" aria-label={t("safetyApp.appName")} className="flex border-b border-border overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            id={`tab-${tab.id}`}
+            aria-selected={activeTab === tab.id}
+            aria-controls={`tabpanel-${tab.id}`}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 min-w-[76px] py-3 text-sm font-medium transition-colors relative flex items-center justify-center gap-1 whitespace-nowrap ${
-              activeTab === tab.id
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground"
+            className={`flex-1 min-w-[76px] py-3 text-sm font-medium transition-colors relative flex items-center justify-center gap-1 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
+              activeTab === tab.id ? "text-primary" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {tab.icon}
             {tab.label}
             {activeTab === tab.id && (
-              <motion.div
-                layoutId="tab-indicator"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
-              />
+              <motion.div layoutId="tab-indicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
             )}
           </button>
         ))}
@@ -117,32 +118,80 @@ const SafetyApp = ({ onExit }: SafetyAppProps) => {
       <div className="px-5 py-5">
         <AnimatePresence mode="wait">
           {activeTab === "checklist" && (
-            <motion.div key="checklist" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+            <motion.div
+              key="checklist"
+              role="tabpanel"
+              id="tabpanel-checklist"
+              aria-labelledby="tab-checklist"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+            >
               <ExitPlanChecklist />
             </motion.div>
           )}
           {activeTab === "help" && (
-            <motion.div key="help" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+            <motion.div
+              key="help"
+              role="tabpanel"
+              id="tabpanel-help"
+              aria-labelledby="tab-help"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+            >
               <GetHelp />
             </motion.div>
           )}
           {activeTab === "panic" && (
-            <motion.div key="panic" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+            <motion.div
+              key="panic"
+              role="tabpanel"
+              id="tabpanel-panic"
+              aria-labelledby="tab-panic"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+            >
               <PanicButton />
             </motion.div>
           )}
           {activeTab === "notes" && (
-            <motion.div key="notes" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+            <motion.div
+              key="notes"
+              role="tabpanel"
+              id="tabpanel-notes"
+              aria-labelledby="tab-notes"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+            >
               <SafetyNotes />
             </motion.div>
           )}
           {activeTab === "vault" && (
-            <motion.div key="vault" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+            <motion.div
+              key="vault"
+              role="tabpanel"
+              id="tabpanel-vault"
+              aria-labelledby="tab-vault"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+            >
               <Vault />
             </motion.div>
           )}
           {activeTab === "backup" && (
-            <motion.div key="backup" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+            <motion.div
+              key="backup"
+              role="tabpanel"
+              id="tabpanel-backup"
+              aria-labelledby="tab-backup"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+            >
               <BackupRestore />
             </motion.div>
           )}

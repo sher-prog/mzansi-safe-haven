@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowLeft, Clock, Users, ChefHat } from "lucide-react";
+import { useTranslation } from "@/i18n";
 
 export interface Recipe {
   title: string;
@@ -16,7 +17,13 @@ interface RecipeDetailProps {
   onBack: () => void;
 }
 
+// Recipe content itself (titles, descriptions, ingredients, method steps) stays
+// English-only in this phase — translating ~100 lines of cooking instructions across
+// three languages is a large effort for cover-story flavour text, not the
+// safety-critical UI. The chrome around it (labels below) is translated like
+// everything else.
 const RecipeDetail = ({ recipe, onBack }: RecipeDetailProps) => {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ x: "100%" }}
@@ -35,9 +42,10 @@ const RecipeDetail = ({ recipe, onBack }: RecipeDetailProps) => {
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
         <button
           onClick={onBack}
-          className="absolute top-4 left-4 bg-background/80 backdrop-blur-sm rounded-full p-2"
+          aria-label={t("recipeDetail.backLabel")}
+          className="absolute top-4 left-4 bg-background/80 backdrop-blur-sm rounded-full p-2 min-h-[48px] min-w-[48px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <ArrowLeft className="w-5 h-5 text-foreground" />
+          <ArrowLeft className="w-5 h-5 text-foreground" aria-hidden="true" />
         </button>
       </div>
 
@@ -50,23 +58,23 @@ const RecipeDetail = ({ recipe, onBack }: RecipeDetailProps) => {
 
         <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <Clock className="w-4 h-4" /> {recipe.time}
+            <Clock className="w-4 h-4" aria-hidden="true" /> {recipe.time}
           </span>
           <span className="flex items-center gap-1.5">
-            <Users className="w-4 h-4" /> Serves {recipe.serves}
+            <Users className="w-4 h-4" aria-hidden="true" /> {t("recipeDetail.serves", { count: recipe.serves })}
           </span>
         </div>
 
         {/* Ingredients */}
         <div className="mt-6">
           <h2 className="font-display text-lg font-semibold text-foreground flex items-center gap-2">
-            <ChefHat className="w-5 h-5 text-primary" />
-            Ingredients
+            <ChefHat className="w-5 h-5 text-primary" aria-hidden="true" />
+            {t("recipeDetail.ingredients")}
           </h2>
           <ul className="mt-3 space-y-2">
             {recipe.ingredients.map((item, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-foreground">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" aria-hidden="true" />
                 {item}
               </li>
             ))}
@@ -76,12 +84,12 @@ const RecipeDetail = ({ recipe, onBack }: RecipeDetailProps) => {
         {/* Method */}
         <div className="mt-6">
           <h2 className="font-display text-lg font-semibold text-foreground">
-            Method
+            {t("recipeDetail.method")}
           </h2>
           <ol className="mt-3 space-y-4">
             {recipe.method.map((step, i) => (
               <li key={i} className="flex gap-3 text-sm text-foreground">
-                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5" aria-hidden="true">
                   {i + 1}
                 </span>
                 <span>{step}</span>

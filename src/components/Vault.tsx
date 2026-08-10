@@ -13,11 +13,14 @@ import { capturePhoto, type MediaRecord, type MediaSource } from "@/lib/evidence
 import { deleteBlob } from "@/lib/blobStore";
 import { useBlobUrl } from "@/hooks/use-blob-url";
 import LoyaltyGate from "@/components/LoyaltyGate";
+import { useTranslation } from "@/i18n";
 import { toast } from "sonner";
+
+type Category = "ID" | "Financial" | "Medical" | "Legal" | "Property" | "Other";
 
 interface VaultDoc {
   id: string;
-  category: "ID" | "Financial" | "Medical" | "Legal" | "Property" | "Other";
+  category: Category;
   title: string;
   notes: string;
   createdAt: string;
@@ -28,29 +31,37 @@ interface VaultDoc {
  * in the blob store, pulled only for evidence export. */
 const MediaThumb = ({ media, className, alt }: { media: MediaRecord; className?: string; alt: string }) => {
   const url = useBlobUrl(media.thumbKey ?? media.originalKey);
-  if (!url) return <div className={`${className} bg-slate-200 animate-pulse`} />;
+  if (!url) return <div className={`${className} bg-muted animate-pulse`} />;
   return <img src={url} alt={alt} className={className} />;
 };
 
-const EvidenceMeta = ({ media }: { media: MediaRecord }) => (
-  <p className="text-[10px] mt-1 break-all" style={{ color: "#94A3B8" }}>
-    Captured {new Date(media.capturedAt).toLocaleString()}
-    {media.gps ? ` • GPS ${media.gps.lat.toFixed(5)}, ${media.gps.lng.toFixed(5)}` : " • GPS not captured"}
-    {` • SHA-256 ${media.sha256.slice(0, 16)}…`}
-  </p>
-);
+const EvidenceMeta = ({ media }: { media: MediaRecord }) => {
+  const { t } = useTranslation();
+  return (
+    <p className="text-[10px] mt-1 break-all text-muted-foreground">
+      {t("evidenceMeta.captured", { date: new Date(media.capturedAt).toLocaleString() })}
+      {" • "}
+      {media.gps
+        ? t("evidenceMeta.gps", { lat: media.gps.lat.toFixed(5), lng: media.gps.lng.toFixed(5) })
+        : t("evidenceMeta.gpsNotCaptured")}
+      {" • "}
+      {t("evidenceMeta.sha256", { hash: media.sha256.slice(0, 16) })}
+    </p>
+  );
+};
 
-const CATEGORIES: VaultDoc["category"][] = ["ID", "Financial", "Medical", "Legal", "Property", "Other"];
+const CATEGORIES: Category[] = ["ID", "Financial", "Medical", "Legal", "Property", "Other"];
 
 const Vault = () => {
+  const { t } = useTranslation();
   const [docs, setDocs] = useState<VaultDoc[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [filterCategory, setFilterCategory] = useState<VaultDoc["category"] | "All">("All");
+  const [filterCategory, setFilterCategory] = useState<Category | "All">("All");
   const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
 
-  const [category, setCategory] = useState<VaultDoc["category"]>("ID");
+  const [category, setCategory] = useState<Category>("ID");
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [photo, setPhoto] = useState<MediaRecord | undefined>();
@@ -107,7 +118,7 @@ const Vault = () => {
         setShowUnlockPrompt(true);
       } else {
         if (import.meta.env.DEV) console.error("Failed to save document:", error);
-        toast.error("Failed to save. Storage may be full.");
+        toast.error(t("vault.saveError"));
       }
     }
   };
@@ -122,7 +133,7 @@ const Vault = () => {
       }
     } catch (error) {
       if (import.meta.env.DEV) console.error("Failed to delete document:", error);
-      toast.error("Failed to save. Storage may be full.");
+      toast.error(t("vault.saveError"));
     }
     setExpandedDoc(null);
     setShowDeleteConfirm(null);
@@ -135,7 +146,7 @@ const Vault = () => {
   const processPhotoFile = async (file: File, source: MediaSource) => {
     const status = await checkStorageUsage();
     if (status.level === "critical") {
-      toast.error(status.message ?? "Storage is almost full.");
+      toast.error(status.message ?? t("vault.saveError"));
       return;
     }
     try {
@@ -149,7 +160,7 @@ const Vault = () => {
         setShowUnlockPrompt(true);
       } else {
         if (import.meta.env.DEV) console.error("Failed to process photo:", error);
-        toast.error("Failed to process photo.");
+        toast.error(t("vault.photoError"));
       }
     }
   };
@@ -187,36 +198,36 @@ const Vault = () => {
   const filtered = filterCategory === "All" ? docs : docs.filter((d) => d.category === filterCategory);
 
   return (
-    <div style={{ backgroundColor: "#FFFFFF" }}>
+    <div className="bg-background">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: "#0F172A" }}>Document Vault</h1>
-          <p className="text-sm mt-1" style={{ color: "#64748B" }}>Store important documents securely</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("vault.title")}</h1>
+          <p className="text-sm mt-1 text-muted-foreground">{t("vault.subtitle")}</p>
         </div>
         <Button
           onClick={() => setShowForm(true)}
-          className="min-h-[48px] flex items-center gap-2"
-          style={{ backgroundColor: "#0F172A", color: "#FFFFFF" }}
+          className="min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <Plus className="w-4 h-4" />
-          Add Document
+          <Plus className="w-4 h-4" aria-hidden="true" />
+          {t("vault.addDocument")}
         </Button>
       </div>
 
       {/* Category Filter */}
-      <div className="flex gap-2 flex-wrap mb-5">
+      <div className="flex gap-2 flex-wrap mb-5" role="group" aria-label={t("vault.form.category")}>
         {(["All", ...CATEGORIES] as const).map((cat) => (
           <button
             key={cat}
             onClick={() => setFilterCategory(cat)}
-            className="px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
-            style={{
-              backgroundColor: filterCategory === cat ? "#0F172A" : "#F1F5F9",
-              color: filterCategory === cat ? "#FFFFFF" : "#475569",
-            }}
+            aria-pressed={filterCategory === cat}
+            className={`px-3 py-1.5 min-h-[36px] rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              filterCategory === cat
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-secondary-foreground"
+            }`}
           >
-            {cat}
+            {cat === "All" ? t("vault.all") : t(`vault.categories.${cat}`)}
           </button>
         ))}
       </div>
@@ -224,49 +235,53 @@ const Vault = () => {
       {/* Documents List */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="text-center py-12" style={{ color: "#64748B" }}>
-            <p>No documents yet</p>
-            <p className="text-sm mt-1">Tap "Add Document" to get started</p>
+          <div className="text-center py-12 text-muted-foreground">
+            <p>{t("vault.empty")}</p>
+            <p className="text-sm mt-1">{t("vault.emptyHint")}</p>
           </div>
         ) : (
           filtered.map((doc) => (
             <motion.div key={doc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
               <Card
-                className="cursor-pointer"
-                style={{ backgroundColor: "#F8FAFC", borderColor: "#E2E8F0", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}
+                className="cursor-pointer bg-card border-border shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                role="button"
+                tabIndex={0}
                 onClick={() => setExpandedDoc(expandedDoc === doc.id ? null : doc.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setExpandedDoc(expandedDoc === doc.id ? null : doc.id);
+                  }
+                }}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
-                    <span
-                      className="px-2.5 py-0.5 rounded-full text-xs font-medium"
-                      style={{ backgroundColor: "#F1F5F9", color: "#475569" }}
-                    >
-                      {doc.category}
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
+                      {t(`vault.categories.${doc.category}`)}
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs" style={{ color: "#64748B" }}>{formatDate(doc.createdAt)}</span>
-                        {doc.photo && <ImageIcon className="w-3 h-3" style={{ color: "#64748B" }} />}
+                        <span className="text-xs text-muted-foreground">{formatDate(doc.createdAt)}</span>
+                        {doc.photo && <ImageIcon className="w-3 h-3 text-muted-foreground" aria-hidden="true" />}
                       </div>
-                      <p className="font-medium" style={{ color: "#0F172A" }}>{doc.title}</p>
+                      <p className="font-medium text-foreground">{doc.title}</p>
 
                       {expandedDoc !== doc.id && doc.photo && (
-                        <MediaThumb media={doc.photo} alt="Document" className="mt-2 w-16 h-16 object-cover rounded" />
+                        <MediaThumb media={doc.photo} alt={t("vault.photo")} className="mt-2 w-16 h-16 object-cover rounded" />
                       )}
 
                       {expandedDoc === doc.id && (
                         <>
                           {doc.notes && (
-                            <div className="mt-3 pt-3" style={{ borderTop: "1px solid #E2E8F0" }}>
-                              <p className="text-xs mb-1" style={{ color: "#64748B" }}>Notes:</p>
-                              <p className="text-sm" style={{ color: "#0F172A" }}>{doc.notes}</p>
+                            <div className="mt-3 pt-3 border-t border-border">
+                              <p className="text-xs mb-1 text-muted-foreground">{t("vault.notes")}</p>
+                              <p className="text-sm text-foreground">{doc.notes}</p>
                             </div>
                           )}
                           {doc.photo && (
                             <div className="mt-3">
-                              <p className="text-xs mb-1" style={{ color: "#64748B" }}>Photo:</p>
-                              <MediaThumb media={doc.photo} alt="Document" className="w-full max-w-md rounded-lg" />
+                              <p className="text-xs mb-1 text-muted-foreground">{t("vault.photo")}</p>
+                              <MediaThumb media={doc.photo} alt={t("vault.photo")} className="w-full max-w-md rounded-lg" />
                               <EvidenceMeta media={doc.photo} />
                             </div>
                           )}
@@ -275,18 +290,19 @@ const Vault = () => {
                               onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(doc.id); }}
                               variant="destructive"
                               size="sm"
-                              className="min-h-[48px] flex items-center gap-2"
+                              aria-label={t("vault.deleteLabel")}
+                              className="min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             >
-                              <Trash2 className="w-4 h-4" />
-                              Delete
+                              <Trash2 className="w-4 h-4" aria-hidden="true" />
+                              {t("common.delete")}
                             </Button>
                           </div>
                         </>
                       )}
                     </div>
                     <ChevronDown
-                      className={`w-4 h-4 transition-transform ${expandedDoc === doc.id ? "rotate-180" : ""}`}
-                      style={{ color: "#64748B" }}
+                      className={`w-4 h-4 transition-transform text-muted-foreground ${expandedDoc === doc.id ? "rotate-180" : ""}`}
+                      aria-hidden="true"
                     />
                   </div>
                 </CardContent>
@@ -304,85 +320,82 @@ const Vault = () => {
 
       {/* New Document Dialog */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
-        <DialogContent style={{ backgroundColor: "#FFFFFF", borderColor: "#E2E8F0", color: "#0F172A" }}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle style={{ color: "#0F172A" }}>New Document</DialogTitle>
+            <DialogTitle>{t("vault.form.title")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm mb-1" style={{ color: "#64748B" }}>Category</label>
-              <div className="flex gap-2 flex-wrap">
+              <span className="block text-sm mb-1 text-muted-foreground">{t("vault.form.category")}</span>
+              <div className="flex gap-2 flex-wrap" role="group" aria-label={t("vault.form.category")}>
                 {CATEGORIES.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setCategory(cat)}
-                    className="px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
-                    style={{
-                      backgroundColor: category === cat ? "#0F172A" : "#F1F5F9",
-                      color: category === cat ? "#FFFFFF" : "#475569",
-                    }}
+                    aria-pressed={category === cat}
+                    className={`px-3 py-1.5 min-h-[36px] rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      category === cat
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-secondary-foreground"
+                    }`}
                   >
-                    {cat}
+                    {t(`vault.categories.${cat}`)}
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm mb-1" style={{ color: "#64748B" }}>Title</label>
+              <label htmlFor="vault-title" className="block text-sm mb-1 text-muted-foreground">{t("vault.form.titleLabel")}</label>
               <Input
+                id="vault-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. ID Document, Bank Statement..."
+                placeholder={t("vault.form.titlePlaceholder")}
                 className="min-h-[48px]"
-                style={{ backgroundColor: "#F8FAFC", borderColor: "#E2E8F0", color: "#0F172A" }}
               />
             </div>
 
             <div>
-              <label className="block text-sm mb-1" style={{ color: "#64748B" }}>Notes (optional)</label>
+              <label htmlFor="vault-notes" className="block text-sm mb-1 text-muted-foreground">{t("vault.form.notesLabel")}</label>
               <Textarea
+                id="vault-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any notes..."
+                placeholder={t("vault.form.notesPlaceholder")}
                 className="min-h-[100px] resize-none"
-                style={{ backgroundColor: "#F8FAFC", borderColor: "#E2E8F0", color: "#0F172A" }}
               />
             </div>
 
             <div>
-              <label className="block text-sm mb-2" style={{ color: "#64748B" }}>Photo</label>
-              <p className="text-xs mb-2" style={{ color: "#94A3B8" }}>
-                Taking a photo directly in the app is the stronger option for evidence — the
-                timestamp and location are recorded at that exact moment.
-              </p>
+              <span className="block text-sm mb-2 text-muted-foreground">{t("vault.form.photoLabel")}</span>
+              <p className="text-xs mb-2 text-muted-foreground">{t("vault.form.photoHint")}</p>
               <div className="flex gap-2 flex-wrap">
                 <Button
                   type="button"
                   onClick={() => { beginHandoff(); cameraInputRef.current?.click(); }}
-                  className="min-h-[48px] flex items-center gap-2"
-                  style={{ backgroundColor: "#0F172A", color: "#FFFFFF" }}
+                  className="min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  <Camera className="w-4 h-4" />
-                  📷 Take Photo
+                  <Camera className="w-4 h-4" aria-hidden="true" />
+                  {t("vault.form.takePhoto")}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => { beginHandoff(); galleryInputRef.current?.click(); }}
-                  className="min-h-[48px] flex items-center gap-2"
-                  style={{ backgroundColor: "#F8FAFC", borderColor: "#E2E8F0", color: "#0F172A" }}
+                  className="min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  <ImageIcon className="w-4 h-4" />
-                  Add from Gallery
+                  <ImageIcon className="w-4 h-4" aria-hidden="true" />
+                  {t("vault.form.addFromGallery")}
                 </Button>
               </div>
               {photo && (
                 <div className="mt-3 relative inline-block">
-                  <MediaThumb media={photo} alt="Attached" className="w-24 h-24 object-cover rounded-lg" />
+                  <MediaThumb media={photo} alt={t("vault.form.takePhoto")} className="w-24 h-24 object-cover rounded-lg" />
                   <button
                     onClick={() => setPhoto(undefined)}
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center"
+                    aria-label={t("vault.form.removePhotoLabel")}
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring before:absolute before:-inset-2.5 before:content-['']"
                   >
                     ✕
                   </button>
@@ -390,16 +403,12 @@ const Vault = () => {
                 </div>
               )}
               {showImportNotice && (
-                <div className="mt-3 flex items-start gap-2 rounded-lg p-3" style={{ backgroundColor: "#EFF6FF", border: "1px solid #BFDBFE" }}>
-                  <p className="text-xs leading-relaxed flex-1" style={{ color: "#1E3A8A" }}>
-                    Saved securely. You can now delete the original from your gallery if you
-                    wish — it will remain here.
-                  </p>
+                <div className="mt-3 flex items-start gap-2 rounded-lg p-3 bg-primary/10 border border-primary/20">
+                  <p className="text-xs leading-relaxed flex-1 text-muted-foreground">{t("vault.form.importNotice")}</p>
                   <button
                     onClick={() => setShowImportNotice(false)}
-                    aria-label="Dismiss"
-                    className="text-xs flex-shrink-0"
-                    style={{ color: "#1E3A8A" }}
+                    aria-label={t("common.dismiss")}
+                    className="relative text-xs flex-shrink-0 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded before:absolute before:-inset-2.5 before:content-['']"
                   >
                     ✕
                   </button>
@@ -412,18 +421,16 @@ const Vault = () => {
             <Button
               variant="outline"
               onClick={resetForm}
-              className="min-h-[48px]"
-              style={{ borderColor: "#E2E8F0", color: "#0F172A" }}
+              className="min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleSave}
               disabled={!title.trim()}
-              className="min-h-[48px]"
-              style={{ backgroundColor: "#0F172A", color: "#FFFFFF" }}
+              className="min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              Save Document
+              {t("vault.form.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -431,13 +438,13 @@ const Vault = () => {
 
       {/* Delete Confirmation */}
       <Dialog open={!!showDeleteConfirm} onOpenChange={() => setShowDeleteConfirm(null)}>
-        <DialogContent style={{ backgroundColor: "#FFFFFF", borderColor: "#E2E8F0", color: "#0F172A" }}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle style={{ color: "#0F172A" }}>Delete this document?</DialogTitle>
+            <DialogTitle>{t("vault.deleteConfirmTitle")}</DialogTitle>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="min-h-[48px]" style={{ borderColor: "#E2E8F0", color: "#0F172A" }}>No</Button>
-            <Button variant="destructive" onClick={() => showDeleteConfirm && handleDelete(showDeleteConfirm)} className="min-h-[48px]">Yes</Button>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">{t("common.no")}</Button>
+            <Button variant="destructive" onClick={() => showDeleteConfirm && handleDelete(showDeleteConfirm)} className="min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">{t("common.yes")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
