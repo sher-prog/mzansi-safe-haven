@@ -157,16 +157,21 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
                     onClick={handleSaltTap}
                     role="presentation"
                     aria-hidden="true"
-                    className="opacity-30 select-none flex items-center justify-center"
+                    className="opacity-30 select-none no-callout flex items-center justify-center"
                     style={{
                       width: 32,
                       height: 32,
                       cursor: "default",
                       WebkitTapHighlightColor: "transparent",
                       touchAction: "manipulation",
+                      userSelect: "none",
+                      WebkitUserSelect: "none",
+                      WebkitTouchCallout: "none",
                     }}
                   >
-                    <span style={{ fontSize: 16 }}>🧂</span>
+                    <span className="select-none no-callout" style={{ fontSize: 16, WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}>
+                      🧂
+                    </span>
                   </div>
                 </div>
               </div>

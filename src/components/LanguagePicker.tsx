@@ -26,8 +26,11 @@ const LanguagePicker = () => {
         className="bg-transparent text-xs font-medium text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded min-h-[44px] py-1"
       >
         {LANGUAGES.map((l) => (
-          <option key={l.code} value={l.code}>
-            {l.label}
+          // The visible option text is the short code (EN/ZU/XH/AF) to keep this
+          // control compact in the recipe header — the full language name (e.g.
+          // "isiZulu") is still exposed to assistive tech via aria-label/title.
+          <option key={l.code} value={l.code} aria-label={l.label} title={l.label}>
+            {l.code.toUpperCase()}
           </option>
         ))}
       </select>

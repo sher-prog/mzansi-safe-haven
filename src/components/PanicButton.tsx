@@ -322,11 +322,17 @@ const PanicButton = () => {
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
           aria-label={t("panic.holdLabel")}
-          className="w-40 h-40 rounded-full flex items-center justify-center select-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-safety-alert-foreground focus-visible:ring-offset-4 focus-visible:ring-offset-safety-alert-bg"
+          className="w-40 h-40 rounded-full flex items-center justify-center select-none no-callout focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-safety-alert-foreground focus-visible:ring-offset-4 focus-visible:ring-offset-safety-alert-bg"
           style={{
             WebkitTapHighlightColor: "transparent",
+            // touch-action prevents iOS's scroll/zoom gestures from hijacking the hold;
+            // -webkit-touch-callout (via the no-callout class above) prevents the
+            // separate native text-selection menu (Copy/Look Up/Share) from appearing
+            // on the same long-press — both are required, they solve different problems.
             touchAction: "none",
             userSelect: "none",
+            WebkitUserSelect: "none",
+            WebkitTouchCallout: "none",
             background: holding
               ? "radial-gradient(circle, hsl(var(--safety-alert)), hsl(var(--safety-alert-deep)))"
               : "radial-gradient(circle, hsl(var(--safety-alert) / 0.65), hsl(var(--safety-alert-deep)))",
@@ -335,7 +341,7 @@ const PanicButton = () => {
               : "0 0 20px hsl(var(--safety-alert) / 0.2)",
           }}
         >
-          <span className="text-safety-alert-foreground font-bold text-sm text-center leading-tight select-none">
+          <span className="text-safety-alert-foreground font-bold text-sm text-center leading-tight select-none no-callout">
             {t("panic.holdButton")}
           </span>
         </button>

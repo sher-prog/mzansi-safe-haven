@@ -411,14 +411,26 @@ const SafetyNotes = () => {
                             </div>
                           )}
                           {note.photo && (
-                            <div className="mt-3">
+                            // stopPropagation: this sits inside the Card's own onClick
+                            // (collapse/expand toggle) — without this guard, interacting
+                            // with the image bubbles up and collapses the card.
+                            <div className="mt-3" onClick={(e) => e.stopPropagation()}>
                               <p className="text-xs text-muted-foreground mb-1">{t("notes.photo")}</p>
                               <MediaThumb media={note.photo} alt={t("notes.photo")} className="w-full max-w-md rounded-lg" />
                               <EvidenceMeta media={note.photo} />
                             </div>
                           )}
                           {note.audio && (
-                            <div className="mt-3">
+                            // stopPropagation: same as above — the native <audio controls>
+                            // UI dispatches a real click on the <audio> element when the
+                            // user taps play/seek/volume, which bubbles like any other DOM
+                            // click. Without this guard that bubbled click hits the Card's
+                            // onClick and collapses the note (unmounting this player)
+                            // immediately after the user starts playback — no error event
+                            // ever fires, since nothing actually failed; the player was just
+                            // unmounted out from under itself. This was the confirmed cause
+                            // of voice notes silently cutting off mid-playback.
+                            <div className="mt-3" onClick={(e) => e.stopPropagation()}>
                               <p className="text-xs text-muted-foreground mb-1">{t("notes.voiceRecording")}</p>
                               <MediaAudioPlayer media={note.audio} className="w-full" />
                               <EvidenceMeta media={note.audio} />

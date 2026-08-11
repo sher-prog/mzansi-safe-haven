@@ -111,4 +111,17 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /* iOS Safari shows its native text-selection callout (Copy/Look Up/Share) on a
+     long-press even when user-select is none, unless -webkit-touch-callout is also
+     set — they're separate WebKit mechanisms. This has to be applied to the specific
+     text node under the finger too, not just an ancestor, since callout has been
+     observed firing on a child text node despite the parent having it set. Pairs with
+     touch-action (set separately per element) which governs scroll/zoom gestures, a
+     different problem. */
+  .no-callout {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }

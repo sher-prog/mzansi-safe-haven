@@ -91,7 +91,14 @@ const SafetyApp = ({ onExit }: SafetyAppProps) => {
         </div>
       </header>
 
-      {/* Tab Navigation */}
+      {/* Tab Navigation — flex-shrink-0 (rather than flex-1) is load-bearing: labels are
+          translated and vary a lot in length (e.g. isiXhosa "Isicwangciso Sokuphuma" vs.
+          English "Exit Plan"). flex-1 let short/long labels fight over equal-width slots,
+          so a long label's un-wrapped text simply overflowed its box and visually spilled
+          into the next tab. flex-shrink-0 lets each tab size to its own content instead,
+          and the scrollable container (already overflow-x-auto) absorbs whatever doesn't
+          fit on screen, rather than squeezing/overlapping tabs. max-w + truncate is a
+          last-resort safety net for a single pathologically long label. */}
       <div role="tablist" aria-label={t("safetyApp.appName")} className="flex border-b border-border overflow-x-auto">
         {tabs.map((tab) => (
           <button
@@ -101,12 +108,13 @@ const SafetyApp = ({ onExit }: SafetyAppProps) => {
             aria-selected={activeTab === tab.id}
             aria-controls={`tabpanel-${tab.id}`}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 min-w-[76px] py-3 text-sm font-medium transition-colors relative flex items-center justify-center gap-1 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
+            title={tab.label}
+            className={`flex-shrink-0 min-w-[76px] max-w-[160px] px-4 py-3 text-sm font-medium transition-colors relative flex items-center justify-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
               activeTab === tab.id ? "text-primary" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {tab.icon}
-            {tab.label}
+            <span className="overflow-hidden text-ellipsis">{tab.label}</span>
             {activeTab === tab.id && (
               <motion.div layoutId="tab-indicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
             )}
