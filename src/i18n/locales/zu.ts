@@ -146,6 +146,7 @@ const zu: typeof en = {
       namePlaceholder: "isb. uMama, uThandi...",
       phoneLabel: "Inombolo Yefoni",
       phonePlaceholder: "isb. +27821234567",
+      invalidPhone: "Faka inombolo yefoni esebenzayo (izinombolo, izikhala, +, -, ( ) kuphela).",
       cancel: "Khansela",
       save: "Gcina Umuntu Othenjwayo",
       skip: "Yeqa okwamanje — inkinobho yokucindezela izoshayela u-TEARS esikhundleni",

@@ -146,6 +146,7 @@ const xh: typeof en = {
       namePlaceholder: "umz. uMama, uThandi...",
       phoneLabel: "Inombolo Yefowuni",
       phonePlaceholder: "umz. +27821234567",
+      invalidPhone: "Faka inombolo yefowuni esebenzayo (amanani, izithuba, +, -, ( ) kuphela).",
       cancel: "Rhoxisa",
       save: "Gcina Umntu Othembekileyo",
       skip: "Yeka okwangoku — iqhosha lokucofa liya kufowunela u-TEARS endaweni yoko",

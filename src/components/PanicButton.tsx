@@ -19,6 +19,18 @@ interface DesktopFallback {
 
 const TEARS_FALLBACK_TEL = "tel:0800083277";
 
+// Digits, an optional leading +, and the visual separators people naturally type
+// (spaces, hyphens, parentheses) — nothing that could be interpreted as URI structure
+// (?, &, #, /) when this value is later interpolated into an `sms:` link's recipient
+// segment. Requiring 7+ digits rules out empty/near-empty submissions without trying
+// to validate real-world numbering plans.
+const PHONE_CHARS_PATTERN = /^[0-9+()\-\s]+$/;
+
+function isValidPhone(phone: string): boolean {
+  const trimmed = phone.trim();
+  return PHONE_CHARS_PATTERN.test(trimmed) && trimmed.replace(/\D/g, "").length >= 7;
+}
+
 /** sms:/tel: links don't do anything useful on most laptops (no default handler) and
  * on some Android devices without one configured — this is a coarse, best-effort
  * signal for "is this a device where those links are likely to actually work",
@@ -70,8 +82,9 @@ const PanicButton = () => {
   }, []);
 
   const handleSaveContact = useCallback(async () => {
-    if (!formName.trim() || !formPhone.trim()) return;
-    const newContact: TrustedContact = { name: formName.trim(), phone: formPhone.trim() };
+    const trimmedPhone = formPhone.trim();
+    if (!formName.trim() || !isValidPhone(trimmedPhone)) return;
+    const newContact: TrustedContact = { name: formName.trim(), phone: trimmedPhone };
     try {
       await setItem("trusted_contact", newContact);
       setContact(newContact);
@@ -98,7 +111,7 @@ const PanicButton = () => {
       const message = `URGENT: I need help.${locationPart} Please call me now. TEARS: 0800601010`;
       try {
         const link = document.createElement("a");
-        link.href = `sms:${contact.phone}?body=${encodeURIComponent(message)}`;
+        link.href = `sms:${encodeURIComponent(contact.phone)}?body=${encodeURIComponent(message)}`;
         link.click();
       } catch {
         toast.error(t("panic.smsFailed"));
@@ -252,6 +265,9 @@ const PanicButton = () => {
               type="tel"
               className="min-h-[48px] bg-safety-alert-foreground/5 text-safety-alert-foreground border-safety-alert-foreground/20 placeholder:text-safety-alert-foreground/40"
             />
+            {formPhone.trim().length > 0 && !isValidPhone(formPhone) && (
+              <p className="text-xs mt-1 text-safety-alert-foreground/80">{t("panic.contactForm.invalidPhone")}</p>
+            )}
           </div>
           <div className="flex gap-2">
             {contact && (
@@ -266,7 +282,7 @@ const PanicButton = () => {
             <Button
               className="min-h-[48px] flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-safety-alert-foreground"
               onClick={handleSaveContact}
-              disabled={!formName.trim() || !formPhone.trim()}
+              disabled={!formName.trim() || !isValidPhone(formPhone)}
             >
               {t("panic.contactForm.save")}
             </Button>

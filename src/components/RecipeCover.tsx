@@ -23,6 +23,20 @@ interface CustomRecipe {
   method: string;
 }
 
+// What actually gets persisted to localStorage for a user-added recipe. Deliberately
+// has no `image` field: every custom recipe uses the same bundled heroFood asset, and
+// that constant is attached at read time (see allRecipes below) rather than round-
+// tripped through JSON — so recipe.image is always a literal import identifier, never
+// a value that came back out of JSON.parse of arbitrary (if locally-sourced) storage.
+interface StoredCustomRecipe {
+  title: string;
+  desc: string;
+  time: string;
+  serves: string;
+  ingredients: string[];
+  method: string[];
+}
+
 const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
   const { t } = useTranslation();
   const [selectedRecipe, setSelectedRecipe] = useState<number | null>(null);
@@ -30,7 +44,7 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
   const [showGate, setShowGate] = useState(false);
   const [showImportBackup, setShowImportBackup] = useState(false);
   const [formData, setFormData] = useState<CustomRecipe>({ title: "", ingredients: "", method: "" });
-  const [customRecipes, setCustomRecipes] = useState<Recipe[]>([]);
+  const [customRecipes, setCustomRecipes] = useState<StoredCustomRecipe[]>([]);
 
   // Salt shaker tap tracking
   const tapCount = useRef(0);
@@ -82,16 +96,18 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
     }
   }, []);
 
-  const allRecipes: Recipe[] = [...defaultRecipes, ...customRecipes];
+  const allRecipes: Recipe[] = [
+    ...defaultRecipes,
+    ...customRecipes.map((recipe) => ({ ...recipe, image: heroFood })),
+  ];
 
   const handleSave = () => {
     if (!formData.title.trim()) return;
-    const newRecipe: Recipe = {
+    const newRecipe: StoredCustomRecipe = {
       title: formData.title,
       desc: t("recipeCover.addRecipeModal.customDesc"),
       time: "—",
       serves: "—",
-      image: heroFood,
       ingredients: formData.ingredients.split("\n").filter(Boolean),
       method: formData.method.split("\n").filter(Boolean),
     };

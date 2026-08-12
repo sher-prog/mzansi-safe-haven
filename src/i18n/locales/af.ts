@@ -146,6 +146,7 @@ const af: typeof en = {
       namePlaceholder: "bv. Ma, Thandi...",
       phoneLabel: "Telefoonnommer",
       phonePlaceholder: "bv. +27821234567",
+      invalidPhone: "Voer 'n geldige telefoonnommer in (slegs syfers, spasies, +, -, ( )).",
       cancel: "Kanselleer",
       save: "Stoor Kontak",
       skip: "Slaan oor vir nou — druk-knoppie sal eerder die TEARS-hulplyn skakel",

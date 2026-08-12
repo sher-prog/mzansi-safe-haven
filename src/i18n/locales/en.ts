@@ -153,6 +153,7 @@ const en = {
       namePlaceholder: "e.g. Mom, Thandi...",
       phoneLabel: "Phone Number",
       phonePlaceholder: "e.g. +27821234567",
+      invalidPhone: "Enter a valid phone number (digits, spaces, +, -, ( ) only).",
       cancel: "Cancel",
       save: "Save Contact",
       skip: "Skip for now — hold button will call the TEARS helpline instead",
