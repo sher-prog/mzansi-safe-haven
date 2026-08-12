@@ -5,6 +5,8 @@ import type { Recipe } from "@/components/RecipeDetail";
 
 export const recipes: Recipe[] = [
   {
+    id: "default-bobotie",
+    isDefault: true,
     title: "Bobotie",
     desc: "Cape Malay spiced mince with egg custard topping",
     time: "1h 15m",
@@ -42,6 +44,8 @@ export const recipes: Recipe[] = [
     ],
   },
   {
+    id: "default-bunny-chow",
+    isDefault: true,
     title: "Bunny Chow",
     desc: "Durban-style curry in a hollowed bread loaf",
     time: "45m",
@@ -79,6 +83,8 @@ export const recipes: Recipe[] = [
     ],
   },
   {
+    id: "default-koeksisters",
+    isDefault: true,
     title: "Koeksisters",
     desc: "Braided dough dipped in cold syrup — sticky-sweet perfection",
     time: "2h",
@@ -113,6 +119,8 @@ export const recipes: Recipe[] = [
     ],
   },
   {
+    id: "default-chakalaka",
+    isDefault: true,
     title: "Chakalaka",
     desc: "Spicy vegetable relish — the braai's best friend",
     time: "40m",
