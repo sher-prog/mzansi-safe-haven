@@ -21,7 +21,9 @@
       "Bash(nohup npm run dev)",
       "Bash(disown)",
       "Bash(curl -sf http://localhost:8080)",
-      "Bash(break)"
+      "Bash(break)",
+      "Bash(git stash *)",
+      "Bash(git status *)"
     ]
   }
 }

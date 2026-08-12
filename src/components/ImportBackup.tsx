@@ -4,6 +4,7 @@ import { ChefHat, ArrowLeft, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PinKeypad from "@/components/PinKeypad";
 import { readBackupFile, importBackup, type BackupFile } from "@/lib/backup";
+import { useTranslation } from "@/i18n";
 
 interface ImportBackupProps {
   onSuccess: () => void;
@@ -18,6 +19,7 @@ type Stage = "pick-file" | "enter-pin";
  * on the ChefHat logo, so it stays out of the way of the app's cover-story surface.
  */
 const ImportBackup = ({ onSuccess, onBack }: ImportBackupProps) => {
+  const { t } = useTranslation();
   const [stage, setStage] = useState<Stage>("pick-file");
   const [backupFile, setBackupFile] = useState<BackupFile | null>(null);
   const [fileName, setFileName] = useState("");
@@ -37,7 +39,7 @@ const ImportBackup = ({ onSuccess, onBack }: ImportBackupProps) => {
       setFileName(file.name);
       setStage("enter-pin");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't read that file.");
+      setError(err instanceof Error ? err.message : t("importBackup.readError"));
     }
   };
 
@@ -49,7 +51,7 @@ const ImportBackup = ({ onSuccess, onBack }: ImportBackupProps) => {
       await importBackup(backupFile, pin);
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't restore this backup.");
+      setError(err instanceof Error ? err.message : t("importBackup.restoreError"));
       setPin("");
     } finally {
       setSubmitting(false);
@@ -65,20 +67,20 @@ const ImportBackup = ({ onSuccess, onBack }: ImportBackupProps) => {
     >
       <button
         onClick={onBack}
-        className="absolute top-4 left-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors min-h-[48px] px-2"
+        aria-label={t("common.back")}
+        className="absolute top-4 left-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors min-h-[48px] px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
       >
-        <ArrowLeft className="w-4 h-4" />
-        Back
+        <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+        {t("common.back")}
       </button>
 
-      <ChefHat className="w-8 h-8 text-primary mb-3" />
+      <ChefHat className="w-8 h-8 text-primary mb-3" aria-hidden="true" />
 
       {stage === "pick-file" ? (
         <>
-          <h1 className="font-display text-xl font-bold text-foreground">Restore a Backup</h1>
+          <h1 className="font-display text-xl font-bold text-foreground">{t("importBackup.pickFileTitle")}</h1>
           <p className="text-muted-foreground mt-2 text-sm max-w-xs leading-relaxed">
-            Choose a previously exported SafeExit backup file to restore your notes, vault,
-            and photos onto this device.
+            {t("importBackup.pickFileBody")}
           </p>
           <input
             ref={fileInputRef}
@@ -87,30 +89,42 @@ const ImportBackup = ({ onSuccess, onBack }: ImportBackupProps) => {
             className="hidden"
             onChange={handleFileChosen}
           />
-          <Button onClick={() => fileInputRef.current?.click()} className="mt-8 px-8 flex items-center gap-2">
-            <FileUp className="w-4 h-4" />
-            Choose Backup File
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-8 px-8 min-h-[48px] flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <FileUp className="w-4 h-4" aria-hidden="true" />
+            {t("importBackup.chooseFile")}
           </Button>
         </>
       ) : (
         <>
-          <h1 className="font-display text-xl font-bold text-foreground">Enter Backup PIN</h1>
+          <h1 className="font-display text-xl font-bold text-foreground">{t("importBackup.enterPinTitle")}</h1>
           <p className="text-muted-foreground mt-2 text-sm max-w-xs leading-relaxed">
-            Enter the PIN that was set when "{fileName}" was exported. This replaces any
-            data currently on this device.
+            {t("importBackup.enterPinBody", { fileName })}
           </p>
           <div className="mt-8">
             <PinKeypad value={pin} onChange={setPin} />
           </div>
-          {error && <p className="text-sm text-muted-foreground mt-4 max-w-xs">{error}</p>}
-          <Button onClick={handleRestore} disabled={pin.length < 4 || submitting} className="mt-8 px-8">
-            Restore
+          {error && (
+            <p role="alert" className="text-sm text-muted-foreground mt-4 max-w-xs">
+              {error}
+            </p>
+          )}
+          <Button
+            onClick={handleRestore}
+            disabled={pin.length < 4 || submitting}
+            className="mt-8 px-8 min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            {t("importBackup.restore")}
           </Button>
         </>
       )}
 
       {error && stage === "pick-file" && (
-        <p className="text-sm text-muted-foreground mt-4 max-w-xs">{error}</p>
+        <p role="alert" className="text-sm text-muted-foreground mt-4 max-w-xs">
+          {error}
+        </p>
       )}
     </motion.div>
   );

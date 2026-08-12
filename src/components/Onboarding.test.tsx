@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithProviders as render } from "@/test/test-utils";
 import { toast } from "sonner";
 import * as secureStorage from "@/lib/secureStorage";
 import Onboarding from "./Onboarding";

@@ -7,6 +7,7 @@ import PinKeypad from "@/components/PinKeypad";
 import * as secureStorage from "@/lib/secureStorage";
 import { isCryptoAvailable } from "@/lib/secureContext";
 import CryptoUnavailableNotice from "@/components/CryptoUnavailableNotice";
+import { useTranslation } from "@/i18n";
 
 interface LoyaltyGateProps {
   onSuccess: () => void;
@@ -16,6 +17,7 @@ interface LoyaltyGateProps {
 type Stage = "choose" | "confirm" | "unlock";
 
 const LoyaltyGate = ({ onSuccess, onBack }: LoyaltyGateProps) => {
+  const { t } = useTranslation();
   const [stage, setStage] = useState<Stage>(() => (secureStorage.isPinSet() ? "unlock" : "choose"));
   const [pin, setPin] = useState("");
   const [firstPin, setFirstPin] = useState("");
@@ -40,7 +42,7 @@ const LoyaltyGate = ({ onSuccess, onBack }: LoyaltyGateProps) => {
       }
       if (stage === "confirm") {
         if (pin !== firstPin) {
-          setError("Codes don't match — let's try again.");
+          setError(t("loyaltyGate.mismatch"));
           setFirstPin("");
           setPin("");
           setStage("choose");
@@ -54,7 +56,7 @@ const LoyaltyGate = ({ onSuccess, onBack }: LoyaltyGateProps) => {
       if (ok) {
         onSuccess();
       } else {
-        setError("Code not recognised — please check your till slip.");
+        setError(t("loyaltyGate.notRecognised"));
         setPin("");
       }
     } catch (err) {
@@ -65,7 +67,7 @@ const LoyaltyGate = ({ onSuccess, onBack }: LoyaltyGateProps) => {
       // this is the belt-and-suspenders backstop for anything that still slips
       // through it (e.g. the context becoming unavailable mid-session).
       if (import.meta.env.DEV) console.error("PIN operation failed:", err);
-      toast.error("Something went wrong securing your code. Please try again.");
+      toast.error(t("loyaltyGate.genericError"));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -77,14 +79,14 @@ const LoyaltyGate = ({ onSuccess, onBack }: LoyaltyGateProps) => {
   }
 
   const title =
-    stage === "unlock" ? "Loyalty Code" : stage === "choose" ? "Choose Your Loyalty Code" : "Confirm Your Loyalty Code";
+    stage === "unlock" ? t("loyaltyGate.titleUnlock") : stage === "choose" ? t("loyaltyGate.titleChoose") : t("loyaltyGate.titleConfirm");
 
   const subtitle =
     stage === "unlock"
-      ? "Enter your loyalty code to view your saved rewards."
+      ? t("loyaltyGate.subtitleUnlock")
       : stage === "choose"
-        ? "Pick a 4–6 digit code for your loyalty account."
-        : "Enter it once more to confirm.";
+        ? t("loyaltyGate.subtitleChoose")
+        : t("loyaltyGate.subtitleConfirm");
 
   return (
     <motion.div
@@ -95,19 +97,20 @@ const LoyaltyGate = ({ onSuccess, onBack }: LoyaltyGateProps) => {
     >
       <button
         onClick={onBack}
-        className="absolute top-4 left-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors min-h-[48px] px-2"
+        aria-label={t("common.back")}
+        className="absolute top-4 left-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors min-h-[48px] px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
       >
-        <ArrowLeft className="w-4 h-4" />
-        Back
+        <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+        {t("common.back")}
       </button>
 
-      <ChefHat className="w-8 h-8 text-primary mb-3" />
+      <ChefHat className="w-8 h-8 text-primary mb-3" aria-hidden="true" />
       <h1 className="font-display text-xl font-bold text-foreground">{title}</h1>
       <p className="text-muted-foreground mt-2 text-sm max-w-xs leading-relaxed">{subtitle}</p>
 
       {stage === "choose" && (
         <p className="text-xs text-muted-foreground/70 mt-2 max-w-xs leading-relaxed">
-          If you forget this code, your private entries cannot be recovered.
+          {t("loyaltyGate.forgetWarning")}
         </p>
       )}
 
@@ -115,10 +118,18 @@ const LoyaltyGate = ({ onSuccess, onBack }: LoyaltyGateProps) => {
         <PinKeypad value={pin} onChange={setPin} />
       </div>
 
-      {error && <p className="text-sm text-muted-foreground mt-4 max-w-xs">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-muted-foreground mt-4 max-w-xs">
+          {error}
+        </p>
+      )}
 
-      <Button onClick={handleContinue} disabled={pin.length < 4 || submitting} className="mt-8 px-8">
-        {stage === "unlock" ? "Redeem Code" : "Continue"}
+      <Button
+        onClick={handleContinue}
+        disabled={pin.length < 4 || submitting}
+        className="mt-8 px-8 min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
+        {stage === "unlock" ? t("loyaltyGate.redeemCode") : t("loyaltyGate.continue")}
       </Button>
     </motion.div>
   );

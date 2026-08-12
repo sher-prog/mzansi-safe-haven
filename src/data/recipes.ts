@@ -1,6 +1,6 @@
-import recipe1 from "@/assets/recipe-1.jpg";
-import recipe2 from "@/assets/recipe-2.jpg";
-import recipe3 from "@/assets/recipe-3.jpg";
+import recipe1 from "@/assets/recipe-1.webp";
+import recipe2 from "@/assets/recipe-2.webp";
+import recipe3 from "@/assets/recipe-3.webp";
 import type { Recipe } from "@/components/RecipeDetail";
 
 export const recipes: Recipe[] = [

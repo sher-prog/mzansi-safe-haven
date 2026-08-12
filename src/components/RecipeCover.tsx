@@ -1,12 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import heroFood from "@/assets/hero-food.jpg";
+import heroFood from "@/assets/hero-food.webp";
 import { Clock, Users, ChefHat, Plus, X } from "lucide-react";
 import { recipes as defaultRecipes } from "@/data/recipes";
 import RecipeDetail from "@/components/RecipeDetail";
 import type { Recipe } from "@/components/RecipeDetail";
 import LoyaltyGate from "@/components/LoyaltyGate";
 import ImportBackup from "@/components/ImportBackup";
+import LanguagePicker from "@/components/LanguagePicker";
+import { useTranslation } from "@/i18n";
 
 const CUSTOM_RECIPES_KEY = "mzansi_recipes";
 const LOGO_LONG_PRESS_MS = 600;
@@ -22,6 +24,7 @@ interface CustomRecipe {
 }
 
 const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
+  const { t } = useTranslation();
   const [selectedRecipe, setSelectedRecipe] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showGate, setShowGate] = useState(false);
@@ -85,7 +88,7 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
     if (!formData.title.trim()) return;
     const newRecipe: Recipe = {
       title: formData.title,
-      desc: "My custom recipe",
+      desc: t("recipeCover.addRecipeModal.customDesc"),
       time: "—",
       serves: "—",
       image: heroFood,
@@ -135,34 +138,40 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
                   onPointerLeave={handleLogoPressEnd}
                   style={{ WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
                 >
-                  <ChefHat className="w-7 h-7 text-primary" />
+                  <ChefHat className="w-7 h-7 text-primary" aria-hidden="true" />
                   <span className="font-display text-xl font-bold text-foreground">
-                    Mzansi's Kitchen
+                    {t("recipeCover.appName")}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
+                  <LanguagePicker />
                   <button
                     onClick={() => setShowForm(true)}
-                    className="flex items-center gap-1 text-sm text-primary font-medium"
+                    className="flex items-center gap-1 text-sm text-primary font-medium min-h-[44px] px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                   >
-                    <Plus className="w-4 h-4" />
-                    Add Recipe
+                    <Plus className="w-4 h-4" aria-hidden="true" />
+                    {t("recipeCover.addRecipe")}
                   </button>
-                  <span className="text-xs text-muted-foreground">🇿🇦</span>
+                  <span className="text-xs text-muted-foreground" aria-hidden="true">🇿🇦</span>
                   <div
                     onClick={handleSaltTap}
                     role="presentation"
                     aria-hidden="true"
-                    className="opacity-30 select-none flex items-center justify-center"
+                    className="opacity-30 select-none no-callout flex items-center justify-center"
                     style={{
                       width: 32,
                       height: 32,
                       cursor: "default",
                       WebkitTapHighlightColor: "transparent",
                       touchAction: "manipulation",
+                      userSelect: "none",
+                      WebkitUserSelect: "none",
+                      WebkitTouchCallout: "none",
                     }}
                   >
-                    <span style={{ fontSize: 16 }}>🧂</span>
+                    <span className="select-none no-callout" style={{ fontSize: 16, WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}>
+                      🧂
+                    </span>
                   </div>
                 </div>
               </div>
@@ -172,16 +181,16 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
             <div className="relative overflow-hidden">
               <img
                 src={heroFood}
-                alt="South African feast"
+                alt={t("recipeCover.heroAlt")}
                 className="w-full h-56 object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
               <div className="absolute bottom-4 left-5 right-5">
                 <h1 className="font-display text-2xl font-bold text-foreground">
-                  Today's Favourites
+                  {t("recipeCover.heroTitle")}
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Traditional South African recipes for the family
+                  {t("recipeCover.heroSubtitle")}
                 </p>
               </div>
             </div>
@@ -195,7 +204,7 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 * Math.min(i, 5) }}
                   onClick={() => setSelectedRecipe(i)}
-                  className="w-full flex gap-4 bg-card rounded-lg overflow-hidden shadow-sm border border-border text-left relative"
+                  className="w-full flex gap-4 bg-card rounded-lg overflow-hidden shadow-sm border border-border text-left relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <img
                     src={recipe.image}
@@ -211,10 +220,10 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
                     </p>
                     <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {recipe.time}
+                        <Clock className="w-3 h-3" aria-hidden="true" /> {recipe.time}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" /> {recipe.serves}
+                        <Users className="w-3 h-3" aria-hidden="true" /> {recipe.serves}
                       </span>
                     </div>
                   </div>
@@ -242,37 +251,41 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
               className="w-full max-w-md bg-card border-t border-border rounded-t-2xl p-5 pb-8 space-y-4"
             >
               <div className="flex items-center justify-between">
-                <h2 className="font-display text-lg font-bold text-foreground">Add Recipe</h2>
-                <button onClick={() => setShowForm(false)} className="text-muted-foreground">
-                  <X className="w-5 h-5" />
+                <h2 className="font-display text-lg font-bold text-foreground">{t("recipeCover.addRecipeModal.title")}</h2>
+                <button
+                  onClick={() => setShowForm(false)}
+                  aria-label={t("recipeCover.addRecipeModal.closeLabel")}
+                  className="text-muted-foreground min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                >
+                  <X className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
               <input
                 value={formData.title}
                 onChange={(e) => setFormData((f) => ({ ...f, title: e.target.value }))}
-                placeholder="Recipe Name"
-                className="w-full px-4 py-3 rounded-lg bg-secondary text-foreground text-sm placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder={t("recipeCover.addRecipeModal.namePlaceholder")}
+                className="w-full px-4 py-3 min-h-[48px] rounded-lg bg-secondary text-foreground text-sm placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <textarea
                 value={formData.ingredients}
                 onChange={(e) => setFormData((f) => ({ ...f, ingredients: e.target.value }))}
-                placeholder="Ingredients (one per line)"
+                placeholder={t("recipeCover.addRecipeModal.ingredientsPlaceholder")}
                 rows={4}
                 className="w-full px-4 py-3 rounded-lg bg-secondary text-foreground text-sm placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none"
               />
               <textarea
                 value={formData.method}
                 onChange={(e) => setFormData((f) => ({ ...f, method: e.target.value }))}
-                placeholder="Method (one step per line)"
+                placeholder={t("recipeCover.addRecipeModal.methodPlaceholder")}
                 rows={4}
                 className="w-full px-4 py-3 rounded-lg bg-secondary text-foreground text-sm placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none"
               />
               <button
                 onClick={handleSave}
                 disabled={!formData.title.trim()}
-                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-40"
+                className="w-full py-3 min-h-[48px] rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                Save Recipe
+                {t("recipeCover.addRecipeModal.save")}
               </button>
             </motion.div>
           </motion.div>

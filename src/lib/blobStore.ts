@@ -69,6 +69,23 @@ export async function getBlob(key: string): Promise<{ bytes: ArrayBuffer; mimeTy
   return { bytes, mimeType: record.mimeType };
 }
 
+/** Reads back a stored blob's mimeType without decrypting its ciphertext — mimeType is
+ * stored as plaintext metadata alongside the encrypted bytes, so this doesn't need an
+ * active session key. Used to backfill MediaRecord.mimeType for records saved before
+ * that field existed on the metadata object (see evidence.ts's normalizeMediaRecord).
+ * Returns null (never throws) if the key doesn't resolve to a stored blob at all. */
+export async function peekBlobMimeType(key: string): Promise<string | null> {
+  try {
+    const db = await openDB();
+    const record = await runRequest<BlobRecord | undefined>(
+      db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(key),
+    );
+    return record?.mimeType ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function deleteBlob(key: string): Promise<void> {
   const db = await openDB();
   await runRequest(db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(key));

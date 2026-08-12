@@ -67,6 +67,9 @@ export default {
         "recipe-gold": "hsl(var(--recipe-gold, 40 80% 52%))",
         "safety-teal": "hsl(var(--safety-teal, 175 50% 35%))",
         "safety-alert": "hsl(var(--safety-alert, 0 75% 55%))",
+        "safety-alert-bg": "hsl(var(--safety-alert-bg, 0 85% 6%))",
+        "safety-alert-foreground": "hsl(var(--safety-alert-foreground, 0 100% 85%))",
+        "safety-alert-deep": "hsl(var(--safety-alert-deep, 0 100% 15%))",
       },
       borderRadius: {
         lg: "var(--radius)",

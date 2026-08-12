@@ -7,6 +7,7 @@ import PinKeypad from "@/components/PinKeypad";
 import * as secureStorage from "@/lib/secureStorage";
 import { isCryptoAvailable } from "@/lib/secureContext";
 import CryptoUnavailableNotice from "@/components/CryptoUnavailableNotice";
+import { useTranslation } from "@/i18n";
 
 interface OnboardingProps {
   onDismiss: () => void;
@@ -15,6 +16,7 @@ interface OnboardingProps {
 type PinStage = "choose" | "confirm";
 
 const Onboarding = ({ onDismiss }: OnboardingProps) => {
+  const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const [pinStage, setPinStage] = useState<PinStage>("choose");
   const [pin, setPin] = useState("");
@@ -44,7 +46,7 @@ const Onboarding = ({ onDismiss }: OnboardingProps) => {
         return;
       }
       if (pin !== firstPin) {
-        setPinError("Codes don't match — let's try again.");
+        setPinError(t("onboarding.pin.mismatch"));
         setFirstPin("");
         setPin("");
         setPinStage("choose");
@@ -59,7 +61,7 @@ const Onboarding = ({ onDismiss }: OnboardingProps) => {
       // render guard below should make this unreachable in practice; this is the
       // belt-and-suspenders backstop for anything that still slips through it.
       if (import.meta.env.DEV) console.error("PIN setup failed:", err);
-      toast.error("Something went wrong securing your code. Please try again.");
+      toast.error(t("onboarding.pin.genericError"));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -77,15 +79,14 @@ const Onboarding = ({ onDismiss }: OnboardingProps) => {
             exit={{ opacity: 0 }}
             className="min-h-screen flex flex-col items-center justify-center px-8 text-center"
           >
-            <div className="text-6xl mb-6">🍲</div>
-            <h1 className="font-display text-2xl font-bold text-foreground">
-              Welcome to Mzansi's Kitchen
-            </h1>
-            <p className="text-muted-foreground mt-3 leading-relaxed">
-              Your personal South African recipe companion
-            </p>
-            <Button onClick={() => setStep(1)} className="mt-10 px-8">
-              Next
+            <div className="text-6xl mb-6" aria-hidden="true">🍲</div>
+            <h1 className="font-display text-2xl font-bold text-foreground">{t("onboarding.step0.title")}</h1>
+            <p className="text-muted-foreground mt-3 leading-relaxed">{t("onboarding.step0.subtitle")}</p>
+            <Button
+              onClick={() => setStep(1)}
+              className="mt-10 px-8 min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {t("onboarding.step0.next")}
             </Button>
           </motion.div>
         )}
@@ -98,25 +99,20 @@ const Onboarding = ({ onDismiss }: OnboardingProps) => {
             exit={{ opacity: 0 }}
             className="min-h-screen flex flex-col items-center justify-center px-8 text-center"
           >
-            <div className="text-5xl mb-6">🧂</div>
-            <h2 className="font-display text-xl font-bold text-foreground">
-              Your Kitchen Secret
-            </h2>
-            <p className="text-muted-foreground mt-4 leading-relaxed">
-              On the recipe screen, tap the salt shaker 3 times to access your private kitchen journal.
-            </p>
-            <p className="text-xs text-muted-foreground/70 mt-4 leading-relaxed max-w-xs">
-              This instruction disappears after you tap Get Started. A small clue will always be on your recipe screen.
-            </p>
-            <Button onClick={() => setStep(2)} className="mt-10 px-8">
-              Next
+            <div className="text-5xl mb-6" aria-hidden="true">🧂</div>
+            <h2 className="font-display text-xl font-bold text-foreground">{t("onboarding.step1.title")}</h2>
+            <p className="text-muted-foreground mt-4 leading-relaxed">{t("onboarding.step1.body")}</p>
+            <p className="text-xs text-muted-foreground/70 mt-4 leading-relaxed max-w-xs">{t("onboarding.step1.note")}</p>
+            <Button
+              onClick={() => setStep(2)}
+              className="mt-10 px-8 min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {t("onboarding.step1.next")}
             </Button>
           </motion.div>
         )}
 
-        {step === 2 && !isCryptoAvailable() && (
-          <CryptoUnavailableNotice key="crypto-unavailable" />
-        )}
+        {step === 2 && !isCryptoAvailable() && <CryptoUnavailableNotice key="crypto-unavailable" />}
 
         {step === 2 && isCryptoAvailable() && (
           <motion.div
@@ -126,18 +122,16 @@ const Onboarding = ({ onDismiss }: OnboardingProps) => {
             exit={{ opacity: 0 }}
             className="min-h-screen flex flex-col items-center justify-center px-8 text-center"
           >
-            <ChefHat className="w-10 h-10 text-primary mb-2" />
+            <ChefHat className="w-10 h-10 text-primary mb-2" aria-hidden="true" />
             <h2 className="font-display text-xl font-bold text-foreground">
-              {pinStage === "choose" ? "Choose Your Loyalty Code" : "Confirm Your Loyalty Code"}
+              {pinStage === "choose" ? t("onboarding.pin.chooseTitle") : t("onboarding.pin.confirmTitle")}
             </h2>
             <p className="text-muted-foreground mt-3 leading-relaxed text-sm max-w-xs">
-              {pinStage === "choose"
-                ? "Pick a 4–6 digit code for your loyalty account."
-                : "Enter it once more to confirm."}
+              {pinStage === "choose" ? t("onboarding.pin.choosePrompt") : t("onboarding.pin.confirmPrompt")}
             </p>
             {pinStage === "choose" && (
               <p className="text-xs text-muted-foreground/70 mt-3 leading-relaxed max-w-xs">
-                If you forget this code, your private entries cannot be recovered.
+                {t("onboarding.pin.forgetWarning")}
               </p>
             )}
 
@@ -145,10 +139,18 @@ const Onboarding = ({ onDismiss }: OnboardingProps) => {
               <PinKeypad value={pin} onChange={setPin} />
             </div>
 
-            {pinError && <p className="text-sm text-muted-foreground mt-4 max-w-xs">{pinError}</p>}
+            {pinError && (
+              <p role="alert" className="text-sm text-muted-foreground mt-4 max-w-xs">
+                {pinError}
+              </p>
+            )}
 
-            <Button onClick={handlePinContinue} disabled={pin.length < 4 || submitting} className="mt-8 px-8">
-              {pinStage === "choose" ? "Next" : "Confirm & Get Started"}
+            <Button
+              onClick={handlePinContinue}
+              disabled={pin.length < 4 || submitting}
+              className="mt-8 px-8 min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {pinStage === "choose" ? t("onboarding.pin.next") : t("onboarding.pin.confirmAndStart")}
             </Button>
           </motion.div>
         )}

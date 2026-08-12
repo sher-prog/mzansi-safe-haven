@@ -117,6 +117,60 @@ describe("generateEvidencePackPdf", () => {
     expect(text).toContain("verified from the point of import onward");
   });
 
+  // Regression: BackupRestore.tsx loads its own copy of `notes` independently of
+  // SafetyNotes.tsx, so an old-shaped/unresolvable photo record could reach here even
+  // after SafetyNotes' own display path was fixed. Before this fix, resolveOriginalBytes
+  // throwing for one bad photo aborted the whole export — every other note's evidence
+  // was lost along with it. This proves one unresolvable photo no longer takes down the
+  // export for every other note.
+  it("still exports every other note's evidence when one note's photo can't be resolved (e.g. an old, unrecoverable record)", async () => {
+    const photoBytes = base64ToArrayBuffer(ONE_PX_PNG_BASE64);
+    const goodKey = await putBlob(photoBytes, "image/png");
+
+    const notes: EvidencePackNote[] = [
+      {
+        id: "1",
+        category: "Incident",
+        what: "Older note whose photo can no longer be located.",
+        trigger: "",
+        createdAt: "2026-01-05T21:00:00.000Z",
+        photo: {
+          mimeType: "",
+          source: "imported",
+          sha256: "",
+          capturedAt: "2026-01-05T21:00:00.000Z",
+          gps: null,
+          originalKey: "__unrecoverable__", // no blob exists under this key
+        },
+      },
+      {
+        id: "2",
+        category: "Pattern",
+        what: "A second, perfectly fine note with a resolvable photo.",
+        trigger: "",
+        createdAt: "2026-01-10T08:00:00.000Z",
+        photo: {
+          mimeType: "image/png",
+          source: "captured",
+          sha256: "d".repeat(64),
+          capturedAt: "2026-01-10T08:00:00.000Z",
+          gps: null,
+          originalKey: goodKey,
+          thumbKey: goodKey,
+        },
+      },
+    ];
+
+    const blob = await generateEvidencePackPdf(notes);
+
+    expect(blob.type).toBe("application/pdf");
+    const text = new TextDecoder("latin1").decode(await blob.arrayBuffer());
+    expect(text.startsWith("%PDF-")).toBe(true);
+    expect(text).toContain("could not be included");
+    expect(text).toContain("d".repeat(64)); // the second note's photo still made it in
+    expect(text).toContain("Pattern");
+  });
+
   it("still generates a valid PDF when there are no notes at all", async () => {
     const blob = await generateEvidencePackPdf([]);
     expect(blob.type).toBe("application/pdf");

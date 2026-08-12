@@ -12,7 +12,7 @@
  * as evidence.
  */
 import { compressImage } from "./mediaHelpers";
-import { putBlob, getBlob } from "./blobStore";
+import { putBlob, getBlob, peekBlobMimeType } from "./blobStore";
 
 export interface GpsCoords {
   lat: number;
@@ -113,6 +113,69 @@ export async function captureAudio(blob: Blob): Promise<MediaRecord> {
   const originalKey = await putBlob(originalBytes, mimeType);
 
   return { mimeType, source: "captured", sha256, capturedAt, gps, originalKey };
+}
+
+/** Sentinel `originalKey` for a MediaRecord that predates the field it would need to be
+ * resolved from storage at all (see normalizeMediaRecord below) — there is no blob to
+ * fetch, by definition, so components must check for this before calling useBlobUrl. */
+export const UNRECOVERABLE_MEDIA_KEY = "__unrecoverable__";
+
+function isGpsCoords(value: unknown): value is GpsCoords {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as Record<string, unknown>).lat === "number" &&
+    typeof (value as Record<string, unknown>).lng === "number"
+  );
+}
+
+function unrecoverableMediaRecord(fallbackDate: string): MediaRecord {
+  return {
+    mimeType: "",
+    source: "imported",
+    sha256: "",
+    capturedAt: fallbackDate,
+    gps: null,
+    originalKey: UNRECOVERABLE_MEDIA_KEY,
+  };
+}
+
+/**
+ * Normalizes a MediaRecord as read back from storage. MediaRecord has grown fields
+ * over time (mimeType and source were both added after the field first shipped, storing
+ * only `{ sha256, capturedAt, gps, originalKey, thumbKey? }`) with no migration written
+ * for records saved in between — so a record loaded today may be missing any field added
+ * after it was originally saved. This is the single place that gets backfilled, so
+ * every component downstream can treat a MediaRecord's fields as always-present rather
+ * than re-deriving fallbacks (or silently breaking) individually.
+ *
+ * `originalKey` is the one field with no reasonable default — without it there is no
+ * blob to fetch. A record missing it (or not even shaped like an object — e.g. the
+ * pre-MediaRecord era, when photo/audio were inline base64 strings) normalizes to the
+ * UNRECOVERABLE_MEDIA_KEY sentinel instead; callers must check for that and show a
+ * specific message rather than attempting to resolve it as a blob.
+ */
+export async function normalizeMediaRecord(raw: unknown, fallbackDate: string): Promise<MediaRecord> {
+  if (typeof raw !== "object" || raw === null) {
+    return unrecoverableMediaRecord(fallbackDate);
+  }
+  const r = raw as Record<string, unknown>;
+  const originalKey = typeof r.originalKey === "string" && r.originalKey ? r.originalKey : undefined;
+  if (!originalKey) {
+    return unrecoverableMediaRecord(fallbackDate);
+  }
+
+  const thumbKey = typeof r.thumbKey === "string" && r.thumbKey ? r.thumbKey : undefined;
+  const mimeType =
+    typeof r.mimeType === "string" && r.mimeType
+      ? r.mimeType
+      : ((await peekBlobMimeType(originalKey)) ?? "application/octet-stream");
+  const source: MediaSource = r.source === "captured" || r.source === "imported" ? r.source : "imported";
+  const sha256 = typeof r.sha256 === "string" ? r.sha256 : "";
+  const capturedAt = typeof r.capturedAt === "string" && r.capturedAt ? r.capturedAt : fallbackDate;
+  const gps = isGpsCoords(r.gps) ? r.gps : null;
+
+  return { mimeType, source, sha256, capturedAt, gps, originalKey, thumbKey };
 }
 
 /** Resolves a MediaRecord's display copy (thumbnail if present, else the original) to bytes. */

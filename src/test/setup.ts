@@ -66,6 +66,18 @@ if (typeof window !== "undefined" && !("PointerEvent" in window)) {
   global.PointerEvent = PointerEventPolyfill;
 }
 
+// jsdom doesn't implement URL.createObjectURL/revokeObjectURL at all — needed by
+// useBlobUrl (src/hooks/use-blob-url.ts) for <img>/<audio> src attributes. The exact
+// URL value doesn't matter for tests; only that one is produced so components relying
+// on it (MediaThumb, MediaAudioPlayer) actually render.
+let mockObjectUrlCounter = 0;
+if (typeof URL !== "undefined" && !URL.createObjectURL) {
+  URL.createObjectURL = () => `blob:mock-${++mockObjectUrlCounter}`;
+}
+if (typeof URL !== "undefined" && !URL.revokeObjectURL) {
+  URL.revokeObjectURL = () => {};
+}
+
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({

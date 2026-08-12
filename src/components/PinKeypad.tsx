@@ -1,4 +1,5 @@
 import { Delete } from "lucide-react";
+import { useTranslation } from "@/i18n";
 
 interface PinKeypadProps {
   value: string;
@@ -9,6 +10,7 @@ interface PinKeypadProps {
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
 
 const PinKeypad = ({ value, onChange, maxLength = 6 }: PinKeypadProps) => {
+  const { t } = useTranslation();
   const press = (key: string) => {
     if (key === "del") {
       onChange(value.slice(0, -1));
@@ -61,9 +63,15 @@ const PinKeypad = ({ value, onChange, maxLength = 6 }: PinKeypadProps) => {
               type="button"
               onPointerUp={handlePointerUp(key)}
               onKeyDown={handleKeyDown(key)}
-              aria-label={key === "del" ? "Delete digit" : `Digit ${key}`}
-              style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
-              className="h-14 min-h-[48px] rounded-xl bg-card border border-border text-foreground text-lg font-semibold flex items-center justify-center active:bg-secondary transition-colors select-none"
+              aria-label={key === "del" ? t("pinKeypad.deleteLabel") : t("pinKeypad.digitLabel", { digit: key })}
+              style={{
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
+                userSelect: "none",
+                WebkitUserSelect: "none",
+                WebkitTouchCallout: "none",
+              }}
+              className="h-14 min-h-[48px] rounded-xl bg-card border border-border text-foreground text-lg font-semibold flex items-center justify-center active:bg-secondary transition-colors select-none no-callout focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {key === "del" ? <Delete className="w-5 h-5" /> : key}
             </button>

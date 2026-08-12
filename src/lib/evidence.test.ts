@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as secureStorage from "./secureStorage";
-import { getBlob } from "./blobStore";
-import { capturePhoto, captureAudio, sha256Hex } from "./evidence";
+import { getBlob, putBlob } from "./blobStore";
+import { capturePhoto, captureAudio, sha256Hex, normalizeMediaRecord, UNRECOVERABLE_MEDIA_KEY } from "./evidence";
 
 // jsdom doesn't decode real images (canvas getContext('2d') is a stub), so the
 // thumbnail step of capturePhoto can't run against a real fixture in this
@@ -119,5 +119,88 @@ describe("evidence capture: audio mimeType fidelity (regression — Safari playb
 
     const stored = await getBlob(media.originalKey);
     expect(new TextDecoder().decode(stored.bytes)).toBe(content);
+  });
+});
+
+// Regression coverage for the "old photos/voice notes no longer visible or playable"
+// bug: MediaRecord gained mimeType and source after it first shipped (the original
+// shape was just { sha256, capturedAt, gps, originalKey, thumbKey? }), with no
+// migration written for records saved in between. normalizeMediaRecord is the fix —
+// these tests construct records missing each newer field and confirm they come back
+// fully usable, and that a record missing the one truly load-bearing field
+// (originalKey) is flagged rather than silently treated as displayable.
+describe("normalizeMediaRecord: backfills MediaRecord fields missing from older records", () => {
+  beforeEach(async () => {
+    localStorage.clear();
+    secureStorage.lock();
+    await secureStorage.setupPin("1234");
+  });
+
+  it("passes a fully current-shaped record through unchanged", async () => {
+    const key = await putBlob(new TextEncoder().encode("bytes").buffer, "image/jpeg");
+    const full = {
+      mimeType: "image/jpeg",
+      source: "captured" as const,
+      sha256: "abc123",
+      capturedAt: "2025-01-01T00:00:00.000Z",
+      gps: { lat: 1, lng: 2 },
+      originalKey: key,
+      thumbKey: undefined,
+    };
+    const result = await normalizeMediaRecord(full, "2099-01-01T00:00:00.000Z");
+    expect(result).toEqual(full);
+  });
+
+  it("infers mimeType from the actual stored blob when the field predates mimeType existing on MediaRecord", async () => {
+    const key = await putBlob(new TextEncoder().encode("photo bytes").buffer, "image/png");
+    const oldShape = { sha256: "abc123", capturedAt: "2025-01-01T00:00:00.000Z", gps: null, originalKey: key };
+
+    const result = await normalizeMediaRecord(oldShape, "2099-01-01T00:00:00.000Z");
+
+    expect(result.mimeType).toBe("image/png");
+    expect(result.originalKey).toBe(key);
+  });
+
+  it("defaults source to 'imported' when the field predates source existing on MediaRecord — it can't be known retroactively", async () => {
+    const key = await putBlob(new TextEncoder().encode("bytes").buffer, "audio/mp4");
+    const oldShape = { mimeType: "audio/mp4", sha256: "abc123", capturedAt: "2025-01-01T00:00:00.000Z", gps: null, originalKey: key };
+
+    const result = await normalizeMediaRecord(oldShape, "2099-01-01T00:00:00.000Z");
+
+    expect(result.source).toBe("imported");
+  });
+
+  it("falls back to the caller-supplied date (the parent note/doc's own createdAt) when capturedAt is missing", async () => {
+    const key = await putBlob(new TextEncoder().encode("bytes").buffer, "image/jpeg");
+    const oldShape = { sha256: "abc123", gps: null, originalKey: key };
+
+    const result = await normalizeMediaRecord(oldShape, "2020-06-15T00:00:00.000Z");
+
+    expect(result.capturedAt).toBe("2020-06-15T00:00:00.000Z");
+  });
+
+  it("defaults sha256 to an empty string and gps to null rather than throwing when they're missing", async () => {
+    const key = await putBlob(new TextEncoder().encode("bytes").buffer, "image/jpeg");
+    const result = await normalizeMediaRecord({ originalKey: key }, "2099-01-01T00:00:00.000Z");
+
+    expect(result.sha256).toBe("");
+    expect(result.gps).toBeNull();
+  });
+
+  it("flags a record with no originalKey at all as unrecoverable, rather than guessing", async () => {
+    const result = await normalizeMediaRecord({ sha256: "abc", capturedAt: "2025-01-01T00:00:00.000Z", gps: null }, "2099-01-01T00:00:00.000Z");
+
+    expect(result.originalKey).toBe(UNRECOVERABLE_MEDIA_KEY);
+  });
+
+  it("flags pre-MediaRecord data (an inline base64 string, not an object at all) as unrecoverable", async () => {
+    const result = await normalizeMediaRecord("data:image/jpeg;base64,dGVzdA==", "2099-01-01T00:00:00.000Z");
+
+    expect(result.originalKey).toBe(UNRECOVERABLE_MEDIA_KEY);
+  });
+
+  it("flags null/undefined as unrecoverable instead of throwing", async () => {
+    expect((await normalizeMediaRecord(null, "2099-01-01T00:00:00.000Z")).originalKey).toBe(UNRECOVERABLE_MEDIA_KEY);
+    expect((await normalizeMediaRecord(undefined, "2099-01-01T00:00:00.000Z")).originalKey).toBe(UNRECOVERABLE_MEDIA_KEY);
   });
 });
