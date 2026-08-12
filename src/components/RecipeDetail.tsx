@@ -1,8 +1,16 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Clock, Users, ChefHat } from "lucide-react";
+import { ArrowLeft, Clock, Users, ChefHat, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "@/i18n";
 
 export interface Recipe {
+  /** Stable identity independent of array position — see RecipeCover.tsx for why
+   * (mutating the list, e.g. via edit/delete, must never make the detail view show
+   * the wrong item). Default recipes use a fixed id; custom ones a crypto.randomUUID(). */
+  id: string;
+  /** Bundled content is never editable or deletable — this is the single source of
+   * truth the UI checks everywhere it needs to distinguish the two. */
+  isDefault: boolean;
   title: string;
   desc: string;
   time: string;
@@ -15,6 +23,10 @@ export interface Recipe {
 interface RecipeDetailProps {
   recipe: Recipe;
   onBack: () => void;
+  /** Omitted (or recipe.isDefault) hides the edit/delete affordances entirely —
+   * bundled recipes never render them, regardless of what a caller passes. */
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 // Recipe content itself (titles, descriptions, ingredients, method steps) stays
@@ -22,8 +34,10 @@ interface RecipeDetailProps {
 // three languages is a large effort for cover-story flavour text, not the
 // safety-critical UI. The chrome around it (labels below) is translated like
 // everything else.
-const RecipeDetail = ({ recipe, onBack }: RecipeDetailProps) => {
+const RecipeDetail = ({ recipe, onBack, onEdit, onDelete }: RecipeDetailProps) => {
   const { t } = useTranslation();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const showControls = !recipe.isDefault && (onEdit || onDelete);
   return (
     <motion.div
       initial={{ x: "100%" }}
@@ -64,6 +78,47 @@ const RecipeDetail = ({ recipe, onBack }: RecipeDetailProps) => {
             <Users className="w-4 h-4" aria-hidden="true" /> {t("recipeDetail.serves", { count: recipe.serves })}
           </span>
         </div>
+
+        {/* Edit/delete — custom recipes only, never rendered for bundled content */}
+        {showControls && !confirmingDelete && (
+          <div className="flex items-center gap-3 mt-4">
+            {onEdit && (
+              <button
+                onClick={onEdit}
+                className="flex items-center gap-1.5 text-sm text-primary font-medium min-h-[44px] px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+              >
+                <Pencil className="w-4 h-4" aria-hidden="true" />
+                {t("recipeCover.editRecipeLabel")}
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                className="flex items-center gap-1.5 text-sm text-destructive font-medium min-h-[44px] px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive rounded"
+              >
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+                {t("recipeCover.deleteRecipeLabel")}
+              </button>
+            )}
+          </div>
+        )}
+        {showControls && confirmingDelete && onDelete && (
+          <div className="mt-4 flex items-center gap-2 text-sm bg-destructive/10 border border-destructive/30 rounded-lg p-3">
+            <span className="text-foreground flex-1">{t("recipeCover.deleteConfirm.message")}</span>
+            <button
+              onClick={() => setConfirmingDelete(false)}
+              className="min-h-[44px] px-3 text-sm font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              onClick={onDelete}
+              className="min-h-[44px] px-3 text-sm font-semibold text-destructive-foreground bg-destructive rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
+            >
+              {t("common.delete")}
+            </button>
+          </div>
+        )}
 
         {/* Ingredients */}
         <div className="mt-6">

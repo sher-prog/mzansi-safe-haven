@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import heroFood from "@/assets/hero-food.webp";
-import { Clock, Users, ChefHat, Plus, X } from "lucide-react";
+import { Clock, Users, ChefHat, Plus, X, Pencil } from "lucide-react";
 import { recipes as defaultRecipes } from "@/data/recipes";
+import { recipeCoverOptions, DEFAULT_COVER_ID, isKnownCoverId, resolveCoverImage } from "@/data/recipeCovers";
 import RecipeDetail from "@/components/RecipeDetail";
 import type { Recipe } from "@/components/RecipeDetail";
 import LoyaltyGate from "@/components/LoyaltyGate";
@@ -17,38 +18,59 @@ interface RecipeCoverProps {
   onUnlock: () => void;
 }
 
-interface CustomRecipe {
+interface RecipeFormData {
   title: string;
+  desc: string;
+  time: string;
+  serves: string;
   ingredients: string;
   method: string;
+  coverId: string;
 }
 
+const emptyFormData: RecipeFormData = {
+  title: "",
+  desc: "",
+  time: "",
+  serves: "",
+  ingredients: "",
+  method: "",
+  coverId: DEFAULT_COVER_ID,
+};
+
 // What actually gets persisted to localStorage for a user-added recipe. Deliberately
-// has no `image` field: every custom recipe uses the same bundled heroFood asset, and
-// that constant is attached at read time (see allRecipes below) rather than round-
-// tripped through JSON — so recipe.image is always a literal import identifier, never
+// has no `image` field: only `coverId`, a reference into recipeCoverOptions — the
+// actual asset is attached at read time (see allRecipes below) rather than round-
+// tripped through JSON, so recipe.image is always a literal import identifier, never
 // a value that came back out of JSON.parse of arbitrary (if locally-sourced) storage.
 interface StoredCustomRecipe {
+  id: string;
   title: string;
   desc: string;
   time: string;
   serves: string;
   ingredients: string[];
   method: string[];
+  coverId: string;
 }
 
 // The TypeScript annotation on JSON.parse's result is a compile-time assertion only —
 // it doesn't check anything at runtime. Since localStorage content isn't guaranteed to
 // match StoredCustomRecipe's shape (a stale format from a previous version, a manual
 // edit, anything), verify it explicitly before trusting it rather than casting blind.
+// coverId in particular must be a known id from recipeCoverOptions — an unrecognized
+// or malformed id is rejected here rather than trusted further down the pipeline.
 function isStoredCustomRecipe(value: unknown): value is StoredCustomRecipe {
   if (typeof value !== "object" || value === null) return false;
   const r = value as Record<string, unknown>;
   return (
+    typeof r.id === "string" &&
+    r.id.length > 0 &&
     typeof r.title === "string" &&
     typeof r.desc === "string" &&
     typeof r.time === "string" &&
     typeof r.serves === "string" &&
+    isKnownCoverId(r.coverId) &&
     Array.isArray(r.ingredients) &&
     r.ingredients.every((item) => typeof item === "string") &&
     Array.isArray(r.method) &&
@@ -58,11 +80,12 @@ function isStoredCustomRecipe(value: unknown): value is StoredCustomRecipe {
 
 const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
   const { t } = useTranslation();
-  const [selectedRecipe, setSelectedRecipe] = useState<number | null>(null);
+  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showGate, setShowGate] = useState(false);
   const [showImportBackup, setShowImportBackup] = useState(false);
-  const [formData, setFormData] = useState<CustomRecipe>({ title: "", ingredients: "", method: "" });
+  const [formData, setFormData] = useState<RecipeFormData>(emptyFormData);
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
   const [customRecipes, setCustomRecipes] = useState<StoredCustomRecipe[]>([]);
 
   // Salt shaker tap tracking
@@ -121,36 +144,88 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
 
   // Built field-by-field (no ...recipe spread) so there's no syntactic path from the
   // JSON.parse-sourced customRecipes entries to the `image` field below — every field
-  // here is either named explicitly off a known-shape object or the heroFood import.
+  // here is either named explicitly off a known-shape object or resolveCoverImage's
+  // return value, which is always one of the literal imports in recipeCovers.ts.
   const allRecipes: Recipe[] = [
     ...defaultRecipes,
     ...customRecipes.map((recipe) => ({
+      id: recipe.id,
+      isDefault: false,
       title: recipe.title,
       desc: recipe.desc,
       time: recipe.time,
       serves: recipe.serves,
       ingredients: recipe.ingredients,
       method: recipe.method,
-      image: heroFood,
+      image: resolveCoverImage(recipe.coverId),
     })),
   ];
 
-  const handleSave = () => {
-    if (!formData.title.trim()) return;
-    const newRecipe: StoredCustomRecipe = {
-      title: formData.title,
-      desc: t("recipeCover.addRecipeModal.customDesc"),
-      time: "—",
-      serves: "—",
-      ingredients: formData.ingredients.split("\n").filter(Boolean),
-      method: formData.method.split("\n").filter(Boolean),
-    };
-    const updated = [...customRecipes, newRecipe];
+  const selectedRecipe = selectedRecipeId ? (allRecipes.find((r) => r.id === selectedRecipeId) ?? null) : null;
+
+  const persistCustomRecipes = (updated: StoredCustomRecipe[]) => {
     setCustomRecipes(updated);
     localStorage.setItem(CUSTOM_RECIPES_KEY, JSON.stringify(updated));
-    setFormData({ title: "", ingredients: "", method: "" });
-    setShowForm(false);
   };
+
+  const openAddForm = useCallback(() => {
+    setFormData(emptyFormData);
+    setEditingRecipeId(null);
+    setShowForm(true);
+  }, []);
+
+  const openEditForm = useCallback(
+    (id: string) => {
+      const target = customRecipes.find((r) => r.id === id);
+      if (!target) return;
+      setFormData({
+        title: target.title,
+        desc: target.desc,
+        time: target.time,
+        serves: target.serves,
+        ingredients: target.ingredients.join("\n"),
+        method: target.method.join("\n"),
+        coverId: target.coverId,
+      });
+      setEditingRecipeId(id);
+      setShowForm(true);
+    },
+    [customRecipes],
+  );
+
+  const closeForm = useCallback(() => {
+    setShowForm(false);
+    setEditingRecipeId(null);
+    setFormData(emptyFormData);
+  }, []);
+
+  const handleSaveRecipe = () => {
+    if (!formData.title.trim()) return;
+    const fields = {
+      title: formData.title.trim(),
+      desc: formData.desc.trim(),
+      time: formData.time.trim() || "—",
+      serves: formData.serves.trim() || "—",
+      ingredients: formData.ingredients.split("\n").map((line) => line.trim()).filter(Boolean),
+      method: formData.method.split("\n").map((line) => line.trim()).filter(Boolean),
+      coverId: isKnownCoverId(formData.coverId) ? formData.coverId : DEFAULT_COVER_ID,
+    };
+
+    const updated = editingRecipeId
+      ? customRecipes.map((r) => (r.id === editingRecipeId ? { ...fields, id: editingRecipeId } : r))
+      : [...customRecipes, { ...fields, id: crypto.randomUUID() }];
+
+    persistCustomRecipes(updated);
+    closeForm();
+  };
+
+  const handleDeleteRecipe = useCallback(
+    (id: string) => {
+      persistCustomRecipes(customRecipes.filter((r) => r.id !== id));
+      if (selectedRecipeId === id) setSelectedRecipeId(null);
+    },
+    [customRecipes, selectedRecipeId],
+  );
 
   return (
     <motion.div
@@ -164,11 +239,13 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
           <ImportBackup key="import-backup" onSuccess={onUnlock} onBack={() => setShowImportBackup(false)} />
         ) : showGate ? (
           <LoyaltyGate key="gate" onSuccess={onUnlock} onBack={() => setShowGate(false)} />
-        ) : selectedRecipe !== null ? (
+        ) : selectedRecipe ? (
           <RecipeDetail
             key="detail"
-            recipe={allRecipes[selectedRecipe]}
-            onBack={() => setSelectedRecipe(null)}
+            recipe={selectedRecipe}
+            onBack={() => setSelectedRecipeId(null)}
+            onEdit={selectedRecipe.isDefault ? undefined : () => openEditForm(selectedRecipe.id)}
+            onDelete={selectedRecipe.isDefault ? undefined : () => handleDeleteRecipe(selectedRecipe.id)}
           />
         ) : (
           <motion.div
@@ -196,7 +273,7 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
                 <div className="flex items-center gap-3">
                   <LanguagePicker />
                   <button
-                    onClick={() => setShowForm(true)}
+                    onClick={openAddForm}
                     className="flex items-center gap-1 text-sm text-primary font-medium min-h-[44px] px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                   >
                     <Plus className="w-4 h-4" aria-hidden="true" />
@@ -248,36 +325,49 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
             {/* Recipe Cards */}
             <div className="px-5 py-6 space-y-4">
               {allRecipes.map((recipe, i) => (
-                <motion.button
-                  key={`${recipe.title}-${i}`}
+                <motion.div
+                  key={recipe.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 * Math.min(i, 5) }}
-                  onClick={() => setSelectedRecipe(i)}
-                  className="w-full flex gap-4 bg-card rounded-lg overflow-hidden shadow-sm border border-border text-left relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="relative w-full flex gap-4 bg-card rounded-lg overflow-hidden shadow-sm border border-border"
                 >
-                  <img
-                    src={recipe.image}
-                    alt={recipe.title}
-                    className="w-28 h-28 object-cover flex-shrink-0"
-                  />
-                  <div className="py-3 pr-3 flex flex-col justify-center flex-1">
-                    <h3 className="font-display text-lg font-semibold text-foreground">
-                      {recipe.title}
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
-                      {recipe.desc}
-                    </p>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" aria-hidden="true" /> {recipe.time}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" aria-hidden="true" /> {recipe.serves}
-                      </span>
+                  <button
+                    onClick={() => setSelectedRecipeId(recipe.id)}
+                    className="flex gap-4 flex-1 min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+                  >
+                    <img
+                      src={recipe.image}
+                      alt={recipe.title}
+                      className="w-28 h-28 object-cover flex-shrink-0"
+                    />
+                    <div className="py-3 pr-3 flex flex-col justify-center flex-1 min-w-0">
+                      <h3 className="font-display text-lg font-semibold text-foreground truncate">
+                        {recipe.title}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
+                        {recipe.desc}
+                      </p>
+                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" aria-hidden="true" /> {recipe.time}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" aria-hidden="true" /> {recipe.serves}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                </motion.button>
+                  </button>
+                  {!recipe.isDefault && (
+                    <button
+                      onClick={() => openEditForm(recipe.id)}
+                      aria-label={t("recipeCover.editRecipeLabel")}
+                      className="absolute top-2 right-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <Pencil className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  )}
+                </motion.div>
               ))}
             </div>
           </motion.div>
@@ -298,12 +388,14 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="w-full max-w-md bg-card border-t border-border rounded-t-2xl p-5 pb-8 space-y-4"
+              className="w-full max-w-md max-h-[85vh] overflow-y-auto bg-card border-t border-border rounded-t-2xl p-5 pb-8 space-y-4"
             >
               <div className="flex items-center justify-between">
-                <h2 className="font-display text-lg font-bold text-foreground">{t("recipeCover.addRecipeModal.title")}</h2>
+                <h2 className="font-display text-lg font-bold text-foreground">
+                  {t(editingRecipeId ? "recipeCover.addRecipeModal.editTitle" : "recipeCover.addRecipeModal.title")}
+                </h2>
                 <button
-                  onClick={() => setShowForm(false)}
+                  onClick={closeForm}
                   aria-label={t("recipeCover.addRecipeModal.closeLabel")}
                   className="text-muted-foreground min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                 >
@@ -316,6 +408,46 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
                 placeholder={t("recipeCover.addRecipeModal.namePlaceholder")}
                 className="w-full px-4 py-3 min-h-[48px] rounded-lg bg-secondary text-foreground text-sm placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary"
               />
+              <textarea
+                value={formData.desc}
+                onChange={(e) => setFormData((f) => ({ ...f, desc: e.target.value }))}
+                placeholder={t("recipeCover.addRecipeModal.descPlaceholder")}
+                rows={2}
+                className="w-full px-4 py-3 rounded-lg bg-secondary text-foreground text-sm placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              />
+              <div className="flex gap-3">
+                <input
+                  value={formData.time}
+                  onChange={(e) => setFormData((f) => ({ ...f, time: e.target.value }))}
+                  placeholder={t("recipeCover.addRecipeModal.timePlaceholder")}
+                  className="w-full px-4 py-3 min-h-[48px] rounded-lg bg-secondary text-foreground text-sm placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <input
+                  value={formData.serves}
+                  onChange={(e) => setFormData((f) => ({ ...f, serves: e.target.value }))}
+                  placeholder={t("recipeCover.addRecipeModal.servesPlaceholder")}
+                  className="w-full px-4 py-3 min-h-[48px] rounded-lg bg-secondary text-foreground text-sm placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <p className="text-sm mb-2 text-foreground">{t("recipeCover.addRecipeModal.coverLabel")}</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {recipeCoverOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setFormData((f) => ({ ...f, coverId: option.id }))}
+                      aria-label={t(option.labelKey)}
+                      aria-pressed={formData.coverId === option.id}
+                      className={`relative rounded-lg overflow-hidden aspect-square border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        formData.coverId === option.id ? "border-primary" : "border-transparent"
+                      }`}
+                    >
+                      <img src={option.image} alt={t(option.labelKey)} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
               <textarea
                 value={formData.ingredients}
                 onChange={(e) => setFormData((f) => ({ ...f, ingredients: e.target.value }))}
@@ -331,7 +463,7 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
                 className="w-full px-4 py-3 rounded-lg bg-secondary text-foreground text-sm placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none"
               />
               <button
-                onClick={handleSave}
+                onClick={handleSaveRecipe}
                 disabled={!formData.title.trim()}
                 className="w-full py-3 min-h-[48px] rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
