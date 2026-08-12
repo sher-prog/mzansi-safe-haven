@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import * as secureStorage from "@/lib/secureStorage";
 import { putBlob } from "@/lib/blobStore";
@@ -11,6 +11,14 @@ describe("useBlobUrl (audio/photo playback path)", () => {
     await secureStorage.setupPin("1234");
     if (!URL.createObjectURL) URL.createObjectURL = vi.fn(() => "blob:mock-url");
     if (!URL.revokeObjectURL) URL.revokeObjectURL = vi.fn();
+  });
+
+  // vi.spyOn on a property that's already spied returns the SAME spy and keeps its
+  // call history (this is how vitest 4's tinyspy behaves — vitest 3 didn't leak this
+  // way), so without restoring here, test 2's spy.mock.calls[0] would silently pick up
+  // test 1's leftover URL.createObjectURL call instead of its own.
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("builds the object URL's Blob with the mimeType actually stored — not a hardcoded constant", async () => {
