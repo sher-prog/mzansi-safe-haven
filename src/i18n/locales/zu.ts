@@ -258,6 +258,8 @@ const zu: typeof en = {
     gps: "I-GPS {{lat}}, {{lng}}",
     gpsNotCaptured: "I-GPS ayithathiwe",
     sha256: "SHA-256 {{hash}}…",
+    unrecoverable: "Ayikwazi ukuboniswa — igcinwe kunguqulo endala yohlelo, ngaphambi kokuba ulwazi lwaleli fayela luqoshwe.",
+    loadError: "Ayikwazanga ukulayisha leli fayela. Kungenzeka alisatholakali kule divayisi.",
   },
   backup: {
     title: "Isipele Nokubuyisela",

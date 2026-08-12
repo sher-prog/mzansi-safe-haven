@@ -265,6 +265,8 @@ const en = {
     gps: "GPS {{lat}}, {{lng}}",
     gpsNotCaptured: "GPS not captured",
     sha256: "SHA-256 {{hash}}…",
+    unrecoverable: "Can't be displayed — saved in an older version of the app, before this file's reference info was recorded.",
+    loadError: "Couldn't load this file. It may no longer be available on this device.",
   },
   backup: {
     title: "Backup & Restore",

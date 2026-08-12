@@ -258,6 +258,8 @@ const xh: typeof en = {
     gps: "I-GPS {{lat}}, {{lng}}",
     gpsNotCaptured: "I-GPS ayibanjwanga",
     sha256: "SHA-256 {{hash}}…",
+    unrecoverable: "Ayikwazi ukuboniswa — igcinwe kwinguqulelo endala yeapp, ngaphambi kokuba ulwazi lwefayile lubhalwe.",
+    loadError: "Ayikwazanga ukulayisha le fayile. Kusenokwenzeka ayisafumaneki kule divayisi.",
   },
   backup: {
     title: "Ikopi Yokugcina Nokubuyisela",

@@ -258,6 +258,8 @@ const af: typeof en = {
     gps: "GPS {{lat}}, {{lng}}",
     gpsNotCaptured: "GPS nie vasgelê nie",
     sha256: "SHA-256 {{hash}}…",
+    unrecoverable: "Kan nie vertoon word nie — gestoor in 'n ouer weergawe van die app, voordat hierdie lêer se verwysingsinligting aangeteken is.",
+    loadError: "Kon nie hierdie lêer laai nie. Dit is dalk nie meer op hierdie toestel beskikbaar nie.",
   },
   backup: {
     title: "Rugsteun & Herstel",

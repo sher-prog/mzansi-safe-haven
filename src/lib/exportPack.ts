@@ -132,7 +132,29 @@ export async function generateEvidencePackPdf(notes: EvidencePackNote[]): Promis
 
     for (const note of photoNotes) {
       const media = note.photo!;
-      const { bytes, mimeType } = await resolveOriginalBytes(media);
+
+      // A single unresolvable photo (an old record predating originalKey, or a blob
+      // genuinely missing from IndexedDB) must not abort the whole export — someone
+      // exporting an evidence pack, possibly urgently, should still get every other
+      // note's evidence rather than a blanket failure over one bad file. Its hash is
+      // still listed in the appendix (from allHashes, built above) regardless.
+      let bytes: ArrayBuffer;
+      let mimeType: string;
+      try {
+        ({ bytes, mimeType } = await resolveOriginalBytes(media));
+      } catch {
+        if (y > PAGE_BOTTOM - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.setFontSize(9);
+        const when = new Date(media.capturedAt).toLocaleString();
+        doc.text(`[Photo from ${when} could not be included — original file not available. See hash in appendix.]`, MARGIN, y);
+        y += 10;
+        doc.setFontSize(10);
+        continue;
+      }
+
       const base64 = `data:${mimeType};base64,${arrayBufferToBase64(bytes)}`;
       const format = mimeToPdfFormat(mimeType);
 

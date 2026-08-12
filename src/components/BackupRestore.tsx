@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Save, ShieldCheck, FileDown, ChefHat, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getItem } from "@/lib/secureStorage";
+import { normalizeMediaRecord } from "@/lib/evidence";
 import type { EvidencePackNote } from "@/lib/exportPack";
 import { exportBackup } from "@/lib/backup";
 import { downloadBlob } from "@/lib/download";
@@ -37,7 +38,19 @@ const BackupRestore = () => {
     (async () => {
       try {
         const stored = await getItem<Note[]>("notes");
-        if (stored) setNotes(stored);
+        if (stored) {
+          // Same normalization as SafetyNotes.tsx's own load — this component keeps an
+          // independent copy of `notes` (for the evidence-pack export) rather than
+          // sharing SafetyNotes' state, so it needs the same fix applied here too.
+          const normalized = await Promise.all(
+            stored.map(async (note) => ({
+              ...note,
+              photo: note.photo ? await normalizeMediaRecord(note.photo, note.createdAt) : undefined,
+              audio: note.audio ? await normalizeMediaRecord(note.audio, note.createdAt) : undefined,
+            })),
+          );
+          setNotes(normalized);
+        }
       } catch (error) {
         if (import.meta.env.DEV) console.error("Failed to load notes for export:", error);
       }

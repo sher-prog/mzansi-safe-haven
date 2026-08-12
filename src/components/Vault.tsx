@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { checkStorageUsage } from "@/lib/mediaHelpers";
 import { getItem, setItem, SecureStorageLockedError } from "@/lib/secureStorage";
 import { beginHandoff } from "@/lib/appFocus";
-import { capturePhoto, type MediaRecord, type MediaSource } from "@/lib/evidence";
+import { capturePhoto, normalizeMediaRecord, UNRECOVERABLE_MEDIA_KEY, type MediaRecord, type MediaSource } from "@/lib/evidence";
 import { deleteBlob } from "@/lib/blobStore";
 import { useBlobUrl } from "@/hooks/use-blob-url";
 import LoyaltyGate from "@/components/LoyaltyGate";
@@ -30,13 +30,21 @@ interface VaultDoc {
 /** Displayed thumbnail is always the compressed copy — the original stays untouched
  * in the blob store, pulled only for evidence export. */
 const MediaThumb = ({ media, className, alt }: { media: MediaRecord; className?: string; alt: string }) => {
-  const url = useBlobUrl(media.thumbKey ?? media.originalKey);
+  const { t } = useTranslation();
+  const { url, failed } = useBlobUrl(
+    media.originalKey === UNRECOVERABLE_MEDIA_KEY ? undefined : (media.thumbKey ?? media.originalKey),
+  );
+  if (media.originalKey === UNRECOVERABLE_MEDIA_KEY) {
+    return <p className="text-xs text-amber-600">{t("evidenceMeta.unrecoverable")}</p>;
+  }
+  if (failed) return <p className="text-xs text-amber-600">{t("evidenceMeta.loadError")}</p>;
   if (!url) return <div className={`${className} bg-muted animate-pulse`} />;
   return <img src={url} alt={alt} className={className} />;
 };
 
 const EvidenceMeta = ({ media }: { media: MediaRecord }) => {
   const { t } = useTranslation();
+  if (media.originalKey === UNRECOVERABLE_MEDIA_KEY) return null;
   return (
     <p className="text-[10px] mt-1 break-all text-muted-foreground">
       {t("evidenceMeta.captured", { date: new Date(media.capturedAt).toLocaleString() })}
@@ -75,7 +83,17 @@ const Vault = () => {
     (async () => {
       try {
         const stored = await getItem<VaultDoc[]>("vault_docs");
-        if (stored) setDocs(stored);
+        if (stored) {
+          // See SafetyNotes.tsx's identical load-time normalization for why: MediaRecord
+          // has gained fields over time with no migration for records saved in between.
+          const normalized = await Promise.all(
+            stored.map(async (doc) => ({
+              ...doc,
+              photo: doc.photo ? await normalizeMediaRecord(doc.photo, doc.createdAt) : undefined,
+            })),
+          );
+          setDocs(normalized);
+        }
       } catch (e) {
         if (import.meta.env.DEV) console.error("Failed to load vault docs:", e);
       }

@@ -19,7 +19,7 @@ describe("useBlobUrl (audio/photo playback path)", () => {
 
     const { result } = renderHook(() => useBlobUrl(key));
 
-    await waitFor(() => expect(result.current).toBeDefined());
+    await waitFor(() => expect(result.current.url).toBeDefined());
 
     expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
     const blobArg = createObjectURLSpy.mock.calls[0][0] as Blob;
@@ -31,7 +31,7 @@ describe("useBlobUrl (audio/photo playback path)", () => {
     const key = await putBlob(new TextEncoder().encode("fake webm bytes").buffer, "audio/webm;codecs=opus");
 
     const { result } = renderHook(() => useBlobUrl(key));
-    await waitFor(() => expect(result.current).toBeDefined());
+    await waitFor(() => expect(result.current.url).toBeDefined());
 
     const blobArg = createObjectURLSpy.mock.calls[0][0] as Blob;
     expect(blobArg.type).toBe("audio/webm;codecs=opus");

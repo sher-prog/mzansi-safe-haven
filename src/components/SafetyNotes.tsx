@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { checkStorageUsage } from "@/lib/mediaHelpers";
 import { getItem, setItem, SecureStorageLockedError } from "@/lib/secureStorage";
 import { beginHandoff } from "@/lib/appFocus";
-import { capturePhoto, captureAudio, type MediaRecord, type MediaSource } from "@/lib/evidence";
+import { capturePhoto, captureAudio, normalizeMediaRecord, UNRECOVERABLE_MEDIA_KEY, type MediaRecord, type MediaSource } from "@/lib/evidence";
 import { pickAudioMimeType } from "@/lib/audioMime";
 import { deleteBlob } from "@/lib/blobStore";
 import { useBlobUrl } from "@/hooks/use-blob-url";
@@ -43,15 +43,26 @@ const formatCountdown = (seconds: number) => {
 /** Displayed thumbnail is always the compressed copy — the original stays untouched
  * in the blob store and is only ever pulled for export. */
 const MediaThumb = ({ media, className, alt }: { media: MediaRecord; className?: string; alt: string }) => {
-  const url = useBlobUrl(media.thumbKey ?? media.originalKey);
+  const { t } = useTranslation();
+  const { url, failed } = useBlobUrl(
+    media.originalKey === UNRECOVERABLE_MEDIA_KEY ? undefined : (media.thumbKey ?? media.originalKey),
+  );
+  if (media.originalKey === UNRECOVERABLE_MEDIA_KEY) {
+    return <p className="text-xs text-amber-600">{t("evidenceMeta.unrecoverable")}</p>;
+  }
+  if (failed) return <p className="text-xs text-amber-600">{t("evidenceMeta.loadError")}</p>;
   if (!url) return <div className={`${className} bg-muted animate-pulse`} />;
   return <img src={url} alt={alt} className={className} />;
 };
 
 const MediaAudioPlayer = ({ media, className }: { media: MediaRecord; className?: string }) => {
   const { t } = useTranslation();
-  const url = useBlobUrl(media.originalKey);
+  const { url, failed } = useBlobUrl(media.originalKey === UNRECOVERABLE_MEDIA_KEY ? undefined : media.originalKey);
   const [playbackError, setPlaybackError] = useState(false);
+  if (media.originalKey === UNRECOVERABLE_MEDIA_KEY) {
+    return <p className="text-xs text-amber-600">{t("evidenceMeta.unrecoverable")}</p>;
+  }
+  if (failed) return <p className="text-xs text-amber-600">{t("evidenceMeta.loadError")}</p>;
   if (!url) return null;
   if (playbackError) {
     return <p className="text-xs text-amber-600">{t("notes.playbackError")}</p>;
@@ -61,6 +72,10 @@ const MediaAudioPlayer = ({ media, className }: { media: MediaRecord; className?
 
 const EvidenceMeta = ({ media }: { media: MediaRecord }) => {
   const { t } = useTranslation();
+  // The unrecoverable sentinel has no real capture/hash info to show — MediaThumb/
+  // MediaAudioPlayer above already explain why nothing displays; don't also show a
+  // blank-looking "SHA-256: " line underneath it.
+  if (media.originalKey === UNRECOVERABLE_MEDIA_KEY) return null;
   return (
     <p className="text-[10px] text-muted-foreground mt-1 break-all">
       {t("evidenceMeta.captured", { date: new Date(media.capturedAt).toLocaleString() })}
@@ -104,7 +119,21 @@ const SafetyNotes = () => {
     (async () => {
       try {
         const stored = await getItem<Note[]>('notes');
-        if (stored) setNotes(stored);
+        if (stored) {
+          // MediaRecord has gained fields over time with no migration for records saved
+          // in between (see normalizeMediaRecord's own doc comment) — normalize on every
+          // load rather than persisting a rewritten copy back to storage, so this stays
+          // a pure read-time concern with no risk of a migration-write bug corrupting
+          // the original data.
+          const normalized = await Promise.all(
+            stored.map(async (note) => ({
+              ...note,
+              photo: note.photo ? await normalizeMediaRecord(note.photo, note.createdAt) : undefined,
+              audio: note.audio ? await normalizeMediaRecord(note.audio, note.createdAt) : undefined,
+            })),
+          );
+          setNotes(normalized);
+        }
       } catch (error) {
         if (import.meta.env.DEV) console.error('Failed to load notes:', error);
       }
