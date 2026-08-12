@@ -37,6 +37,25 @@ interface StoredCustomRecipe {
   method: string[];
 }
 
+// The TypeScript annotation on JSON.parse's result is a compile-time assertion only —
+// it doesn't check anything at runtime. Since localStorage content isn't guaranteed to
+// match StoredCustomRecipe's shape (a stale format from a previous version, a manual
+// edit, anything), verify it explicitly before trusting it rather than casting blind.
+function isStoredCustomRecipe(value: unknown): value is StoredCustomRecipe {
+  if (typeof value !== "object" || value === null) return false;
+  const r = value as Record<string, unknown>;
+  return (
+    typeof r.title === "string" &&
+    typeof r.desc === "string" &&
+    typeof r.time === "string" &&
+    typeof r.serves === "string" &&
+    Array.isArray(r.ingredients) &&
+    r.ingredients.every((item) => typeof item === "string") &&
+    Array.isArray(r.method) &&
+    r.method.every((item) => typeof item === "string")
+  );
+}
+
 const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
   const { t } = useTranslation();
   const [selectedRecipe, setSelectedRecipe] = useState<number | null>(null);
@@ -75,7 +94,11 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(CUSTOM_RECIPES_KEY);
-      if (stored) setCustomRecipes(JSON.parse(stored));
+      if (!stored) return;
+      const parsed: unknown = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        setCustomRecipes(parsed.filter(isStoredCustomRecipe));
+      }
     } catch {
       // Malformed local recipe data — ignore and start fresh.
     }
@@ -96,9 +119,20 @@ const RecipeCover = ({ onUnlock }: RecipeCoverProps) => {
     }
   }, []);
 
+  // Built field-by-field (no ...recipe spread) so there's no syntactic path from the
+  // JSON.parse-sourced customRecipes entries to the `image` field below — every field
+  // here is either named explicitly off a known-shape object or the heroFood import.
   const allRecipes: Recipe[] = [
     ...defaultRecipes,
-    ...customRecipes.map((recipe) => ({ ...recipe, image: heroFood })),
+    ...customRecipes.map((recipe) => ({
+      title: recipe.title,
+      desc: recipe.desc,
+      time: recipe.time,
+      serves: recipe.serves,
+      ingredients: recipe.ingredients,
+      method: recipe.method,
+      image: heroFood,
+    })),
   ];
 
   const handleSave = () => {
